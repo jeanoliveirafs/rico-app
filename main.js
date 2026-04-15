@@ -200,22 +200,31 @@ async function ld(){
   const s=localStorage.getItem(KEY);
   if(s){try{const d=JSON.parse(s);ach=d.aiChat||[];ich=d.invChat||[];}catch(e){}}
 
-  // Auth state change listener — handles login/logout reactively
+  // Guarda para evitar inicialização dupla (INITIAL_SESSION + getSession)
+  let _appStarted = false;
+
+  async function startApp(user){
+    if(_appStarted) return;
+    _appStarted = true;
+    currentUser = user;
+    const loginBtn = document.querySelector('#auth-overlay .sb');
+    if(loginBtn){ loginBtn.disabled=false; loginBtn.textContent='Entrar'; }
+    document.getElementById('auth-overlay').style.display='none';
+    document.getElementById('app').style.display='flex';
+    await loadData();
+    applyTheme(); processRecurring(); updateStreak(); recordBalance();
+    flushQueue(); checkBillNotifications(); injectManifest(); registerSW(); showIOSHint(); render();
+  }
+
+  // onAuthStateChange: cobre login novo (SIGNED_IN), refresh de página (INITIAL_SESSION)
+  // e renovação de token (TOKEN_REFRESHED)
   supabaseClient.auth.onAuthStateChange(async (event, session) => {
-    if(event==='SIGNED_IN' && session){
-      currentUser = session.user;
-      // Resetar botão de login (pode ter ficado "Entrando..." de tentativa anterior)
-      const loginBtn = document.querySelector('#auth-overlay .sb');
-      if(loginBtn){ loginBtn.disabled=false; loginBtn.textContent='Entrar'; }
-      document.getElementById('auth-overlay').style.display='none';
-      document.getElementById('app').style.display='flex';
-      await loadData();
-      applyTheme(); processRecurring(); updateStreak(); recordBalance();
-      injectManifest(); registerSW(); showIOSHint(); render();
+    if(session && (event==='SIGNED_IN' || event==='INITIAL_SESSION' || event==='TOKEN_REFRESHED')){
+      await startApp(session.user);
     } else if(event==='SIGNED_OUT'){
+      _appStarted = false;
       currentUser = null;
       ST = {balance:0,transactions:[],bills:[],debts:[],shoppingList:[],investments:[],aiChat:[],invChat:[],budgetLimits:{},streak:0,lastNoSpurfluous:null,balanceHistory:[],theme:'dark'};
-      // Garantir que botões de auth estão no estado correto
       const loginBtn = document.querySelector('#auth-overlay .sb');
       const regBtn   = document.querySelector('#auth-overlay .cb');
       if(loginBtn){ loginBtn.disabled=false; loginBtn.textContent='Entrar'; }
@@ -225,17 +234,18 @@ async function ld(){
     }
   });
 
+  // Fallback: getSession garante exibição correta se INITIAL_SESSION não disparar
   const { data: { session } } = await supabaseClient.auth.getSession();
-  if(!session){
+  if(session){
+    await startApp(session.user); // no-op se INITIAL_SESSION já chamou startApp
+    return true;
+  }
+  // Se não há sessão E INITIAL_SESSION ainda não resolveu, mostrar login
+  if(!_appStarted){
     document.getElementById('auth-overlay').style.display='flex';
     document.getElementById('app').style.display='none';
-    return false;
   }
-  currentUser = session.user;
-  document.getElementById('auth-overlay').style.display='none';
-  document.getElementById('app').style.display='flex';
-  await loadData();
-  return true;
+  return false;
 }
 
 // Helper: salva uma linha imediatamente (sem esperar debounce)
@@ -243,6 +253,19 @@ function saveRow(table, row, onConflict='created_id'){
   if(!currentUser) return;
   supabaseClient.from(table).upsert(row, {onConflict})
     .then(({error}) => { if(error) console.error(`[save:${table}]`, error.message); });
+}
+
+// Helper: salva perfil/saldo imediatamente (evita balance=0 no refresh)
+function saveProfile(){
+  if(!currentUser) return;
+  saveRow('profiles', {
+    id: currentUser.id,
+    balance: ST.balance,
+    streak: ST.streak,
+    last_no_spurfluous: ST.lastNoSpurfluous,
+    theme: ST.theme,
+    budget_limits: ST.budgetLimits
+  }, 'id');
 }
 
 async function pushToSupabase() {
@@ -310,6 +333,9 @@ function uh(){
   if(!b)return;
   b.textContent=fB(ST.balance);
   b.style.color=ST.balance>=0?'var(--green)':'var(--red)';
+  // user email
+  const hu=document.getElementById('huser');
+  if(hu && currentUser) hu.textContent=currentUser.email?.split('@')[0]||'';
   // bills notification dot
   const dot=document.getElementById('bills-dot');
   if(dot){const ov=ST.bills.filter(b=>b.month===nm()&&!b.paid);dot.style.display=ov.length?'block':'none';}
@@ -756,6 +782,7 @@ function stx(){
   ST.balance+=type==='income'?amount:-amount;
   recordBalance();
   saveRow('transactions',{user_id:currentUser?.id,created_id:String(newTx.id),type,amount,description:desc,category,date:newTx.date,recurring,recurring_from:null});
+  saveProfile();
   sv_();cm();render();
 }
 
@@ -904,6 +931,7 @@ function appdp(id){
     ST.balance=+(ST.balance-val).toFixed(2);
     recordBalance();
     saveRow('transactions',{user_id:currentUser?.id,created_id:String(newTx.id),type:'expense',amount:val,description:newTx.desc,category:'outros',date:newTx.date,recurring:false,recurring_from:null});
+    saveProfile();
   }
   saveRow('debts',{user_id:currentUser?.id,created_id:String(d.id),creditor:d.creditor,amount:d.amount,due_date:d.dueDate||null,note:d.note||null,paid:d.paid});
   sv_();cm();render();
@@ -960,7 +988,7 @@ async function dtx(id){
     const tx=ST.transactions.find(t=>t.id===id);
     if(tx) ST.balance -= tx.type==='income'?tx.amount:-tx.amount;
     ST.transactions=ST.transactions.filter(t=>t.id!==id);
-    recordBalance();sv_();render();
+    recordBalance();saveProfile();sv_();render();
   }
 }
 
@@ -1224,19 +1252,10 @@ Object.assign(window, {
 });
 
 // ═══════ INIT ═══════
+// startApp() dentro de ld() cuida de toda a inicialização.
+// initApp() só precisa iniciar o processo de auth.
 async function initApp() {
-  const isLogged = await ld();
-  if(!isLogged) return;
-  applyTheme();
-  processRecurring();
-  updateStreak();
-  recordBalance();
-  flushQueue();
-  checkBillNotifications();
-  injectManifest();
-  registerSW();
-  showIOSHint();
-  render();
+  await ld();
 }
 initApp();
 
