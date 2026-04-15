@@ -232,13 +232,28 @@ async function ld(){
 
 async function pushToSupabase() {
   if (!currentUser) return;
-  await supabaseClient.from('profiles').upsert({id: currentUser.id, balance: ST.balance, streak: ST.streak, last_no_spurfluous: ST.lastNoSpurfluous, theme: ST.theme, budget_limits: ST.budgetLimits});
-  if(ST.transactions.length) await supabaseClient.from('transactions').upsert(ST.transactions.map(t=>({user_id: currentUser.id, created_id: String(t.id), type: t.type, amount: t.amount, description: t.desc, category: t.category, date: t.date, recurring: t.recurring, recurring_from: t.recurringFrom})));
-  if(ST.bills.length) await supabaseClient.from('bills').upsert(ST.bills.map(b=>({user_id: currentUser.id, created_id: String(b.id), name: b.name, amount: b.amount, category: b.category, due_day: b.dueDay, month: b.month, paid: b.paid})));
-  if(ST.debts.length) await supabaseClient.from('debts').upsert(ST.debts.map(d=>({user_id: currentUser.id, created_id: String(d.id), creditor: d.creditor, amount: d.amount, due_date: d.dueDate, note: d.note, paid: d.paid})));
-  if(ST.shoppingList.length) await supabaseClient.from('shopping_list').upsert(ST.shoppingList.map(s=>({user_id: currentUser.id, created_id: String(s.id), name: s.name, estimated_price: s.estimatedPrice, reason: s.reason, priority: s.priority, ai_justification: s.aiJustification, bought: s.bought, bought_at: s.boughtAt})));
-  if(ST.investments.length) await supabaseClient.from('investments').upsert(ST.investments.map(i=>({user_id: currentUser.id, created_id: String(i.id), type: i.type, name: i.name, amount: i.amount, return_rate: i.returnRate, note: i.note, date: i.date})));
-  if(ST.balanceHistory.length) await supabaseClient.from('balance_history').upsert(ST.balanceHistory.map(h=>({user_id: currentUser.id, date: h.date, value: h.value})));
+  // profiles usa id (PK) como conflict — funciona direto
+  const {error:pe} = await supabaseClient.from('profiles').upsert({id: currentUser.id, balance: ST.balance, streak: ST.streak, last_no_spurfluous: ST.lastNoSpurfluous, theme: ST.theme, budget_limits: ST.budgetLimits});
+  if(pe) console.error('[sync] profiles:', pe.message);
+
+  // Todas as demais tabelas usam created_id UNIQUE como conflict target
+  const upsertTable = async (table, rows) => {
+    if(!rows.length) return;
+    const {error} = await supabaseClient.from(table).upsert(rows, {onConflict: 'created_id'});
+    if(error) console.error(`[sync] ${table}:`, error.message);
+  };
+
+  await upsertTable('transactions', ST.transactions.map(t=>({user_id: currentUser.id, created_id: String(t.id), type: t.type, amount: t.amount, description: t.desc, category: t.category, date: t.date, recurring: t.recurring||false, recurring_from: t.recurringFrom||null})));
+  await upsertTable('bills', ST.bills.map(b=>({user_id: currentUser.id, created_id: String(b.id), name: b.name, amount: b.amount, category: b.category, due_day: parseInt(b.dueDay)||null, month: b.month, paid: b.paid||false})));
+  await upsertTable('debts', ST.debts.map(d=>({user_id: currentUser.id, created_id: String(d.id), creditor: d.creditor, amount: d.amount, due_date: d.dueDate||null, note: d.note||null, paid: d.paid||false})));
+  await upsertTable('shopping_list', ST.shoppingList.map(s=>({user_id: currentUser.id, created_id: String(s.id), name: s.name, estimated_price: s.estimatedPrice||0, reason: s.reason||null, priority: s.priority||null, ai_justification: s.aiJustification||null, bought: s.bought||false, bought_at: s.boughtAt||null})));
+  await upsertTable('investments', ST.investments.map(i=>({user_id: currentUser.id, created_id: String(i.id), type: i.type, name: i.name, amount: i.amount, return_rate: i.returnRate||0, note: i.note||null, date: i.date})));
+
+  // balance_history usa UNIQUE(user_id, date)
+  if(ST.balanceHistory.length){
+    const {error} = await supabaseClient.from('balance_history').upsert(ST.balanceHistory.map(h=>({user_id: currentUser.id, date: h.date, value: h.value})), {onConflict: 'user_id,date'});
+    if(error) console.error('[sync] balance_history:', error.message);
+  }
 }
 
 let syncTimer = null;
@@ -721,7 +736,7 @@ function stx(){
   if(!amount||!desc)return;
   const category=type==='expense'?document.getElementById('tc').value:'outros';
   const recurring=document.getElementById('trec')?.checked||false;
-  ST.transactions.unshift({id:Date.now(),type,amount,desc,category,date:new Date().toISOString(),recurring});
+  ST.transactions.unshift({id:Date.now(),type,amount,desc,category,date:new Date().toISOString(),recurring,recurringFrom:null});
   ST.balance+=type==='income'?amount:-amount;
   recordBalance();sv_();cm();render();
 }
@@ -737,7 +752,7 @@ function sbill(){
   const name=document.getElementById('bn').value.trim();
   const amount=parseFloat(document.getElementById('ba').value.replace(',','.'));
   if(!name||!amount)return;
-  ST.bills.push({id:Date.now(),name,amount,category:document.getElementById('bc').value,dueDay:document.getElementById('bd').value,month:document.getElementById('bm').value,paid:false});
+  ST.bills.push({id:Date.now(),name,amount,category:document.getElementById('bc').value,dueDay:parseInt(document.getElementById('bd').value)||null,month:document.getElementById('bm').value,paid:false});
   sv_();cm();render();
 }
 
@@ -767,7 +782,7 @@ function mShop(){return `<p class="mt">Adicionar Item</p>
 function sshop(){
   const name=document.getElementById('sn').value.trim();
   if(!name)return;
-  ST.shoppingList.push({id:Date.now(),name,estimatedPrice:parseFloat(document.getElementById('sp').value||'0'),reason:document.getElementById('sr2').value,priority:null,aiJustification:null,bought:false});
+  ST.shoppingList.push({id:Date.now(),name,estimatedPrice:parseFloat(document.getElementById('sp').value||'0'),reason:document.getElementById('sr2').value||null,priority:null,aiJustification:null,bought:false,boughtAt:null});
   sv_();cm();render();
 }
 
