@@ -1,122 +1,86 @@
-# 💎 RICO — Do Mil ao Milhão
+# 💰 RICO — Personal Finance App with AI Advisor
 
-Aplicativo de controle financeiro pessoal baseado na metodologia do livro **"Do Mil ao Milhão"** de Thiago Nigro.
+> **EN** | [🇧🇷 Versão em Português abaixo](#-sobre-o-projeto-português)
 
-## Funcionalidades
+A personal finance web app inspired by the "Do Mil ao Milhão" methodology by Thiago Nigro. RICO helps users take control of their finances through expense tracking, investment simulation, and an AI financial advisor powered by GPT-4o.
 
-- **Dashboard** — Saldo, histórico e metas financeiras
-- **Transações** — Controle de receitas e despesas com categorias
-- **Contas** — Gerenciar contas a pagar com notificações de vencimento
-- **Dívidas** — Rastrear e quitar dívidas
-- **Lista de Compras** — Avaliação inteligente com IA (prioridade: essencial → supérfluo)
-- **Investimentos** — Portfólio, análise IA e simulador de juros compostos
-- **IA Financeira** — Assistente baseado nos princípios do livro
-- **PWA** — Funciona como app no celular, com suporte offline
-- **Tema** — Dark/Light mode
+---
 
-## Tecnologias
+## ✨ Features
 
-- **Frontend:** HTML5, CSS3, JavaScript vanilla (ES6+)
-- **Build:** Vite 8
-- **Backend:** Supabase (PostgreSQL + Auth + Edge Functions)
-- **IA:** GPT-4o-mini via Supabase Edge Function
+- 📊 **Dashboard** — Balance overview, history, and financial goals
+- 💸 **Transactions** — Track income and expenses with categories
+- 🏦 **Accounts Payable** — Manage bills with due date notifications
+- 💳 **Debt Tracker** — Track and pay off debts systematically
+- 🛒 **Smart Shopping List** — AI evaluates purchases (essential vs. superfluous)
+- 📈 **Investments** — Portfolio management, AI analysis & compound interest simulator
+- 🤖 **AI Financial Advisor** — Assistant based on the "Do Mil ao Milhão" principles
+- 📱 **PWA** — Works as a mobile app with offline support
+- 🌙 **Dark/Light Mode** — Theme switching
 
-## Configuração Local
+---
 
-### 1. Pré-requisitos
+## 🛠️ Tech Stack
 
-- Node.js 18+
-- Conta no [Supabase](https://supabase.com)
+| Layer | Technology |
+|-------|-----------|
+| Frontend | HTML5, CSS3, JavaScript (ES6+), Vite |
+| Backend | Supabase (PostgreSQL + Auth + Edge Functions) |
+| AI | GPT-4o-mini via Supabase Edge Function |
+| Deploy | GitHub Pages (CI/CD) |
 
-### 2. Clonar e instalar
+---
+
+## 🚀 Getting Started
 
 ```bash
-git clone https://github.com/seu-usuario/rico-financas.git
-cd rico-financas
+git clone https://github.com/jeanoliveirafs/rico-app.git
+cd rico-app
 npm install
-```
-
-### 3. Configurar variáveis de ambiente
-
-```bash
 cp .env.example .env
-```
-
-Edite o `.env` e preencha:
-
-```env
-VITE_SUPABASE_URL=https://seu-projeto.supabase.co
-VITE_SUPABASE_KEY=sua-anon-key
-```
-
-### 4. Configurar banco de dados
-
-Execute o arquivo `supabase_schema.sql` no SQL Editor do seu projeto Supabase.
-
-### 5. Configurar Edge Function (IA)
-
-No painel do Supabase, crie uma Edge Function chamada `openai_chat` com acesso à API do OpenAI (modelo `gpt-4o-mini`).
-
-### 6. Rodar localmente
-
-```bash
+# Add your Supabase URL and anon key
 npm run dev
 ```
 
-Acesse `http://localhost:3000`
+### Environment Variables
 
-## Deploy no GitHub Pages
+```env
+VITE_SUPABASE_URL=your_supabase_project_url
+VITE_SUPABASE_KEY=your_supabase_anon_key
+```
 
-### 1. Fazer push para o GitHub
+---
+
+## 💡 The 50-30-10-10 Rule (Thiago Nigro)
+
+| % | Destination |
+|---|-------------|
+| 50% | Essential expenses |
+| 30% | Investments |
+| 10% | Other expenses |
+| 10% | Free spending |
+
+---
+
+## 🇧🇷 Sobre o Projeto (Português)
+
+**RICO** é um app de controle financeiro pessoal baseado na metodologia do livro "Do Mil ao Milhão" de Thiago Nigro. Ajuda os usuários a controlarem suas finanças com rastreamento de gastos, simulação de investimentos e um assistente de IA financeiro.
+
+### Funcionalidades
+
+- 📊 **Dashboard** — Saldo, histórico e metas financeiras
+- 💸 **Transações** — Controle de receitas e despesas com categorias
+- 🤖 **IA Financeira** — Assistente baseado nos princípios do livro
+- 📈 **Investimentos** — Portfólio, análise IA e simulador de juros compostos
+- 📱 **PWA** — Funciona como app no celular com suporte offline
+
+### Como Executar
 
 ```bash
-git init
-git add .
-git commit -m "feat: initial commit"
-git remote add origin https://github.com/seu-usuario/rico-financas.git
-git push -u origin main
+git clone https://github.com/jeanoliveirafs/rico-app.git
+cd rico-app && npm install && cp .env.example .env && npm run dev
 ```
 
-### 2. Ativar GitHub Pages
+---
 
-1. Vá em **Settings → Pages** no seu repositório
-2. Em **Source**, selecione **GitHub Actions**
-
-### 3. Configurar Secrets (opcional)
-
-Se quiser usar um Supabase diferente do padrão:
-
-1. Vá em **Settings → Secrets and variables → Actions**
-2. Adicione:
-   - `VITE_SUPABASE_URL`
-   - `VITE_SUPABASE_KEY`
-
-O deploy acontece automaticamente a cada push na branch `main`.
-
-## Estrutura do Projeto
-
-```
-rico-financas/
-├── index.html          # HTML principal + PWA meta tags
-├── main.js             # Toda a lógica da aplicação (~1100 linhas)
-├── style.css           # Design system + componentes
-├── vite.config.js      # Configuração do Vite
-├── supabase_schema.sql # Schema do banco PostgreSQL
-├── package.json
-└── .github/
-    └── workflows/
-        └── deploy.yml  # CI/CD para GitHub Pages
-```
-
-## Regra 50-30-10-10 (Thiago Nigro)
-
-| Porcentagem | Destino |
-|-------------|---------|
-| 50% | Gastos essenciais |
-| 30% | Investimentos |
-| 10% | Outros gastos |
-| 10% | Livre |
-
-## Licença
-
-ISC
+<p align="center">Made with ❤️ by <a href="https://github.com/jeanoliveirafs">Jean Oliveira</a></p>
