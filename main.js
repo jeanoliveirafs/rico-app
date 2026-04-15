@@ -152,7 +152,20 @@ async function doRegister() {
 }
 
 async function doLogout() {
-  await supabaseClient.auth.signOut();
+  const btn = document.querySelector('#header button[onclick="doLogout()"], #header .ib');
+  if(btn){ btn.disabled=true; btn.textContent='Saindo...'; }
+  try {
+    // Timeout de 3s: se o Supabase travar por Lock, força logout manual
+    await Promise.race([
+      supabaseClient.auth.signOut(),
+      new Promise((_,rej) => setTimeout(() => rej(new Error('timeout')), 3000))
+    ]);
+  } catch(e) {
+    // Fallback: limpa sessão manualmente e recarrega
+    Object.keys(localStorage).filter(k => k.startsWith('sb-')).forEach(k => localStorage.removeItem(k));
+    window.location.reload();
+    return;
+  }
 }
 
 // ═══════ PERSIST (SUPABASE) ═══════
