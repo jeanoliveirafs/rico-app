@@ -5,7 +5,7 @@ const TXC=[{id:'alimentacao',label:'Alimentação',emoji:'🍔',color:'#f97316'}
 const BLC=[{id:'moradia',label:'Moradia',emoji:'🏠'},{id:'energia',label:'Energia',emoji:'⚡'},{id:'agua',label:'Água',emoji:'💧'},{id:'internet',label:'Internet',emoji:'📡'},{id:'cartao',label:'Cartão',emoji:'💳'},{id:'streaming',label:'Streaming',emoji:'📺'},{id:'celular',label:'Celular',emoji:'📱'},{id:'outros',label:'Outros',emoji:'📦'}];
 const PC={essencial:{label:'Essencial',color:'#4ade80',bg:'rgba(74,222,128,.12)',border:'rgba(74,222,128,.3)',icon:'🟢'},importante:{label:'Importante',color:'#facc15',bg:'rgba(250,204,21,.12)',border:'rgba(250,204,21,.3)',icon:'🟡'},desejo:{label:'Desejo',color:'#f97316',bg:'rgba(249,115,22,.12)',border:'rgba(249,115,22,.3)',icon:'🟠'},'supérfluo':{label:'Supérfluo',color:'#f87171',bg:'rgba(248,113,113,.12)',border:'rgba(248,113,113,.3)',icon:'🔴'}};
 const IVT=[{id:'reserva',label:'Reserva Emergência',emoji:'🛡️',color:'#06b6d4',r:0},{id:'rendafixa',label:'Renda Fixa',emoji:'🏦',color:'#4ade80',r:1},{id:'tesouro',label:'Tesouro Direto',emoji:'🇧🇷',color:'#22d3ee',r:1},{id:'fii',label:'FIIs',emoji:'🏢',color:'#818cf8',r:2},{id:'fundos',label:'Fundos',emoji:'📊',color:'#a78bfa',r:2},{id:'acoes',label:'Ações',emoji:'📈',color:'#fb923c',r:3},{id:'cripto',label:'Cripto',emoji:'₿',color:'#f59e0b',r:4},{id:'outro',label:'Outro',emoji:'💡',color:'#94a3b8',r:2}];
-const LV=`LIVRO: "Do Mil ao Milhão" - Thiago Nigro\n3 PILARES: Gastar Bem, Investir Melhor, Ganhar Mais\nREGRA 50-30-10-10: 50% essenciais, 30% investimentos, 10% outros, 10% livre\nFUNDO EMERGÊNCIA: CLT=6x renda, Autônomo=12x. Tesouro Selic ou CDB liquidez diária. PRIORIDADE #1.\nTRIÂNGULO NIGRO: Risco x Liquidez x Rendimento. Tesouro Selic = benchmark.\nHIERARQUIA: Fundo emergência > CDB/LCI/LCA > Tesouro IPCA+ > FIIs > Ações > Cripto\nTABELA MILHÃO: R$1k/mês a 12%aa = R$1M em ~20 anos\nQUITE DÍVIDAS ANTES DE INVESTIR. Pobre paga juros, rico recebe.\nVendas ações <R$20k/mês = isentas IR. Máx 10 ativos. NÃO day trade.\nLCI/LCA isenta IR. FII: dividendos mensais isentos IR.\nGANHAR MAIS: mérito>esforço, escala, personal branding, múltiplas fontes renda.`;
+const LV=`PRINCÍPIOS DE FINANÇAS PESSOAIS:\n3 PILARES: Gastar Bem, Investir Melhor, Ganhar Mais\nREGRA 50-30-20: 50% essenciais, 30% qualidade de vida, 20% investimentos\nFUNDO EMERGÊNCIA: 6-12x renda mensal. Tesouro Selic ou CDB liquidez diária. PRIORIDADE #1.\nTRIÂNGULO DO INVESTIDOR: Risco x Liquidez x Rendimento. Tesouro Selic = benchmark.\nHIERARQUIA: Fundo emergência > CDB/LCI/LCA > Tesouro IPCA+ > FIIs > Ações > Cripto\nTABELA DO MILHÃO: R$1k/mês a 12%aa = R$1M em ~20 anos\nQUITE DÍVIDAS ANTES DE INVESTIR. Juros de dívidas superam qualquer investimento.\nVendas ações <R$20k/mês = isentas IR. Máx 10 ativos. NÃO day trade.\nLCI/LCA isenta IR. FII: dividendos mensais isentos IR.\nGANHAR MAIS: mérito, escala, múltiplas fontes de renda.`;
 
 // ═══════ STATE ═══════
 let ST={
@@ -197,8 +197,30 @@ async function loadData(){
 }
 
 async function ld(){
+  // ── Restaurar cache local (dados aparecem instantaneamente no refresh) ──
+  let cachedUid = null;
   const s=localStorage.getItem(KEY);
-  if(s){try{const d=JSON.parse(s);ach=d.aiChat||[];ich=d.invChat||[];}catch(e){}}
+  if(s){
+    try{
+      const d=JSON.parse(s);
+      ach=d.aiChat||[]; ich=d.invChat||[];
+      if(d.cache){
+        cachedUid = d.cache.uid;
+        // Preenchemos ST agora; loadData() sobrescreverá com dados frescos do Supabase
+        ST.balance          = d.cache.balance          ?? ST.balance;
+        ST.transactions     = d.cache.transactions     ?? ST.transactions;
+        ST.bills            = d.cache.bills            ?? ST.bills;
+        ST.debts            = d.cache.debts            ?? ST.debts;
+        ST.shoppingList     = d.cache.shoppingList     ?? ST.shoppingList;
+        ST.investments      = d.cache.investments      ?? ST.investments;
+        ST.budgetLimits     = d.cache.budgetLimits     ?? ST.budgetLimits;
+        ST.streak           = d.cache.streak           ?? ST.streak;
+        ST.lastNoSpurfluous = d.cache.lastNoSpurfluous ?? ST.lastNoSpurfluous;
+        ST.balanceHistory   = d.cache.balanceHistory   ?? ST.balanceHistory;
+        ST.theme            = d.cache.theme            ?? ST.theme;
+      }
+    }catch(e){}
+  }
 
   // Guarda para evitar inicialização dupla (INITIAL_SESSION + getSession)
   let _appStarted = false;
@@ -211,9 +233,17 @@ async function ld(){
     if(loginBtn){ loginBtn.disabled=false; loginBtn.textContent='Entrar'; }
     document.getElementById('auth-overlay').style.display='none';
     document.getElementById('app').style.display='flex';
+
+    // Se há cache do mesmo usuário, mostra imediatamente (sem esperar Supabase)
+    if(cachedUid === user.id){
+      applyTheme(); render();
+    }
+
+    // Carrega dados frescos do Supabase (sobrescreve o cache)
     await loadData();
     applyTheme(); processRecurring(); updateStreak(); recordBalance();
     flushQueue(); checkBillNotifications(); injectManifest(); registerSW(); showIOSHint(); render();
+    sv_(); // Atualiza o cache com os dados frescos do Supabase
   }
 
   // onAuthStateChange: cobre login novo (SIGNED_IN), refresh de página (INITIAL_SESSION)
@@ -225,6 +255,7 @@ async function ld(){
       _appStarted = false;
       currentUser = null;
       ST = {balance:0,transactions:[],bills:[],debts:[],shoppingList:[],investments:[],aiChat:[],invChat:[],budgetLimits:{},streak:0,lastNoSpurfluous:null,balanceHistory:[],theme:'dark'};
+      try{ localStorage.removeItem(KEY); }catch(e){} // Limpa cache ao sair
       const loginBtn = document.querySelector('#auth-overlay .sb');
       const regBtn   = document.querySelector('#auth-overlay .cb');
       if(loginBtn){ loginBtn.disabled=false; loginBtn.textContent='Entrar'; }
@@ -296,15 +327,33 @@ async function pushToSupabase() {
 
 let syncTimer = null;
 function sv_(){
-  try{localStorage.setItem(KEY,JSON.stringify({aiChat:ach,invChat:ich}));}catch(e){}
+  // Salva cache completo do estado no localStorage (restauração imediata no refresh)
+  try{
+    localStorage.setItem(KEY, JSON.stringify({
+      aiChat: ach, invChat: ich,
+      cache: {
+        uid: currentUser?.id,
+        balance: ST.balance,
+        transactions: ST.transactions,
+        bills: ST.bills,
+        debts: ST.debts,
+        shoppingList: ST.shoppingList,
+        investments: ST.investments,
+        budgetLimits: ST.budgetLimits,
+        streak: ST.streak,
+        lastNoSpurfluous: ST.lastNoSpurfluous,
+        balanceHistory: ST.balanceHistory,
+        theme: ST.theme
+      }
+    }));
+  }catch(e){}
   if(!isOnline){
-    // Queue all tables for sync when back online
     if(currentUser){
       queueOp({type:'upsert',table:'profiles',data:{id:currentUser.id,balance:ST.balance,streak:ST.streak,last_no_spurfluous:ST.lastNoSpurfluous,theme:ST.theme,budget_limits:ST.budgetLimits}});
     }
     return;
   }
-  if (syncTimer) clearTimeout(syncTimer);
+  if(syncTimer) clearTimeout(syncTimer);
   syncTimer = setTimeout(pushToSupabase, 1500);
 }
 
@@ -427,7 +476,7 @@ function rDash(){
   const ov=cB.filter(b=>!b.paid);
   if(dO.length||res<tIn*3&&tIn>0||ov.length||sup.length){
     let r='';
-    if(dO.length)r+=`<div class="ar">🚫 <span>Nigro: quite dívidas ANTES de investir — ${fB(dS)}</span></div>`;
+    if(dO.length)r+=`<div class="ar">🚫 <span>Quite dívidas ANTES de investir — ${fB(dS)} em aberto</span></div>`;
     if(res<tIn*3&&tIn>0)r+=`<div class="ar">🛡️ <span>Reserva insuficiente. Ideal: ${fB(tIn*6)}</span></div>`;
     if(ov.length)r+=`<div class="ar">⚠️ <span>${ov.length} conta(s) pendente — ${fB(ov.reduce((a,b)=>a+b.amount,0))}</span></div>`;
     if(sup.length)r+=`<div class="ar">🚨 <span>${sup.length} item supérfluo na lista!</span></div>`;
@@ -490,7 +539,20 @@ function rDash(){
   // Recent transactions (last 6)
   const txR=ST.transactions.slice(0,6).map(tx=>txRow(tx)).join('');
 
-  return `
+  const userName = currentUser?.email?.split('@')[0] || 'usuário';
+  const h = new Date().getHours();
+  const greeting = h<12 ? 'Bom dia' : h<18 ? 'Boa tarde' : 'Boa noite';
+  const welcomeHTML = `<div class="card" style="background:linear-gradient(135deg,rgba(74,222,128,.07),rgba(99,102,241,.07));border-color:rgba(74,222,128,.2);margin-bottom:0">
+    <div class="rw" style="gap:12px;align-items:center">
+      <div style="width:46px;height:46px;border-radius:50%;background:linear-gradient(135deg,var(--green),var(--purple));display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:900;color:#06060f;flex-shrink:0;text-transform:uppercase">${userName.charAt(0)}</div>
+      <div>
+        <p style="font-size:15px;font-weight:700;margin-bottom:2px">${greeting}, <span style="color:var(--green)">${userName}</span>! 👋</p>
+        <p class="ti" style="color:var(--muted2)">Aqui está seu resumo financeiro</p>
+      </div>
+    </div>
+  </div>`;
+
+  return `${welcomeHTML}
   <div class="card" style="animation:glow 3s infinite">
     <div class="rb"><span class="sl">META R$ 100.000</span><span class="bg2" style="color:var(--green);background:rgba(74,222,128,.1)">${fP(prog)}</span></div>
     <div class="tr"><div class="tf" style="width:${prog}%"></div></div>
@@ -621,7 +683,7 @@ function rDebts(){
   const dO=ST.debts.filter(d=>!d.paid);
   const dP=ST.debts.filter(d=>d.paid);
   const dS=dO.reduce((a,b)=>a+b.amount,0);
-  const ban=dS>0?`<div class="card" style="border-color:rgba(248,113,113,.25);background:rgba(248,113,113,.04)"><p style="font-size:10px;color:var(--red);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">⚠️ PRINCÍPIO DO LIVRO</p><p style="font-size:12px;color:#fca5a5;line-height:1.5">"Quite suas dívidas ANTES de investir. O pobre paga juros para sempre. O rico os recebe." — Thiago Nigro</p></div>`:'';
+  const ban=dS>0?`<div class="card" style="border-color:rgba(248,113,113,.25);background:rgba(248,113,113,.04)"><p style="font-size:10px;color:var(--red);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">⚠️ DICA FINANCEIRA</p><p style="font-size:12px;color:#fca5a5;line-height:1.5">Quite suas dívidas antes de investir — os juros das dívidas costumam superar qualquer rendimento de investimento.</p></div>`:'';
   if(!dO.length&&!dP.length)return `${ban}<div class="card"><div class="rb"><div><p class="sl">O que você deve</p><p class="mo" style="font-size:22px;font-weight:800;color:var(--green)">${fB(0)}</p></div><button class="pb" onclick="om('debt')">+ Nova</button></div></div><div class="es"><span style="font-size:40px">🎉</span><p style="color:var(--muted);margin:8px 0 16px;font-size:13px">Nenhuma dívida! Continue assim.</p></div>`;
   const or=dO.sort((a,b)=>new Date(a.dueDate||'9999')-new Date(b.dueDate||'9999')).map(d=>{
     const isUrgent=d.dueDate&&new Date(d.dueDate)<new Date(Date.now()+7*86400000);
@@ -640,7 +702,7 @@ function rShop(){
   const si=(i,ib=false)=>{
     const cfg=i.priority?PC[i.priority]:null;
     const di=ib?'✓':(cfg?cfg.icon:'⚪');
-    return `<div class="lc" style="opacity:${ib?.5:1}"><div class="dot" style="background:${cfg?cfg.color:'#475569'};font-size:14px">${di}</div><div class="f1"><div class="rb"><span class="td" style="text-decoration:${ib?'line-through':'none'}">${es(i.name)}</span>${i.estimatedPrice>0?`<span class="ta mo" style="color:${cfg?cfg.color:'var(--muted)'}">${fB(i.estimatedPrice)}</span>`:''}</div>${i.aiJustification?`<p style="font-size:11px;color:${cfg?cfg.color:'var(--muted)'};margin-top:2px;line-height:1.4">📖 ${es(i.aiJustification)}</p>`:''}</div><div class="ac">${!ib?`<button class="ib" style="color:var(--green)" onclick="tb(${i.id})">✓</button>`:''}<button class="ib" style="color:var(--red)" onclick="dsi(${i.id})">✕</button></div></div>`;
+    return `<div class="lc" style="opacity:${ib?.5:1}"><div class="dot" style="background:${cfg?cfg.color:'#475569'};font-size:14px">${di}</div><div class="f1"><div class="rb"><span class="td" style="text-decoration:${ib?'line-through':'none'}">${es(i.name)}</span>${i.estimatedPrice>0?`<span class="ta mo" style="color:${cfg?cfg.color:'var(--muted)'}">${fB(i.estimatedPrice)}</span>`:''}</div>${i.aiJustification?`<p style="font-size:11px;color:${cfg?cfg.color:'var(--muted)'};margin-top:2px;line-height:1.4">💡 ${es(i.aiJustification)}</p>`:''}</div><div class="ac">${!ib?`<button class="ib" style="color:var(--green)" onclick="tb(${i.id})">✓</button>`:''}<button class="ib" style="color:var(--red)" onclick="dsi(${i.id})">✕</button></div></div>`;
   };
   let secs='';
   ['essencial','importante','desejo','supérfluo'].forEach(p=>{if(!byP[p].length)return;const cfg=PC[p];const tot=byP[p].reduce((a,b)=>a+(b.estimatedPrice||0),0);secs+=`<div style="margin-bottom:14px"><div class="ph" style="border-color:${cfg.border};background:${cfg.bg}"><span>${cfg.icon} ${cfg.label}</span><span class="mo" style="font-size:12px">${fB(tot)}</span></div>${byP[p].map(i=>si(i)).join('')}</div>`;});
@@ -648,7 +710,7 @@ function rShop(){
   if(bght.length)secs+=`<div style="margin-bottom:14px"><p class="sl" style="margin-bottom:8px">Comprados ✓</p>${bght.slice(0,5).map(i=>si(i,true)).join('')}</div>`;
   const totalPend=pend.reduce((a,b)=>a+(b.estimatedPrice||0),0);
   const empty=!pend.length&&!bght.length?`<div class="es"><span style="font-size:40px">🛒</span><p style="color:var(--muted);margin:8px 0 16px;font-size:13px">Lista vazia.</p><button class="pb" onclick="om('shop')">Adicionar item</button></div>`:'';
-  return `<div class="card"><div class="rb"><div><p class="sl">Lista de Compras</p><p class="mu">${pend.length} itens · ${fB(totalPend)}</p></div><div class="rw"><button class="gb" style="margin-right:6px" onclick="aip()" ${ap?'disabled':''}>🤖 ${ap?'...':'Priorizar'}</button><button class="pb" onclick="om('shop')">+ Item</button></div></div>${byP.sem.length?`<div class="tb" style="margin-top:8px">📖 "Antes de comprar, pense no custo de oportunidade." Use <b>Priorizar</b>.</div>`:''}</div>${empty}${secs}`;
+  return `<div class="card"><div class="rb"><div><p class="sl">Lista de Compras</p><p class="mu">${pend.length} itens · ${fB(totalPend)}</p></div><div class="rw"><button class="gb" style="margin-right:6px" onclick="aip()" ${ap?'disabled':''}>🤖 ${ap?'...':'Priorizar'}</button><button class="pb" onclick="om('shop')">+ Item</button></div></div>${byP.sem.length?`<div class="tb" style="margin-top:8px">💡 Antes de comprar, pense no custo de oportunidade. Use <b>Priorizar</b> para classificar seus itens.</div>`:''}</div>${empty}${secs}`;
 }
 
 // ═══════ INVEST ═══════
@@ -676,9 +738,9 @@ function rInvest(){
     const sp=Math.min((ST.balance/gn)*100,100);
     const r50=inc*.5,r30=inc*.3,r10a=inc*.1,r10b=inc*.1;
     const rh=inc>0?`<div class="card"><p class="sl">Distribuição 50-30-10-10</p>${[{l:'50% Essenciais',v:r50,c:'var(--green)',d:'Moradia, alimentação, transporte'},{l:'30% Investimentos',v:r30,c:'var(--purple)',d:'OBRIGATÓRIO'},{l:'10% Outros',v:r10a,c:'var(--yellow)',d:'Extras controlados'},{l:'10% Liberdade',v:r10b,c:'var(--orange)',d:'Torrar sem culpa 🎉'}].map(d=>`<div style="margin-bottom:12px"><div class="rb"><span style="font-size:13px;font-weight:600">${d.l}</span><span class="ta mo" style="color:${d.c}">${fB(d.v)}/mês</span></div><p class="ti" style="color:var(--muted2);margin-bottom:4px">${d.d}</p><div class="pm"><div class="pf" style="width:100%;background:${d.c}"></div></div></div>`).join('')}</div>`:'';
-    const sh=cs>0?`<div class="card" style="border-color:rgba(74,222,128,.2)"><p class="sl">Simulação</p><div class="g2"><div class="sc" style="border-color:rgba(74,222,128,.3)"><span>💰</span><span class="mo" style="font-size:13px;font-weight:700;color:var(--green)">${fB(cs)}</span><span class="ti">Sobra/mês</span></div><div class="sc" style="border-color:rgba(6,182,212,.3)"><span>📅</span><span class="mo" style="font-size:13px;font-weight:700;color:var(--cyan)">${fB(parseFloat(ds))}</span><span class="ti">Guardar/dia</span></div><div class="sc" style="border-color:rgba(167,139,250,.3)"><span>📆</span><span class="mo" style="font-size:13px;font-weight:700;color:var(--purple)">${mn} meses</span><span class="ti">Para meta</span></div><div class="sc" style="border-color:rgba(250,204,21,.3)"><span>🏦</span><span class="mo" style="font-size:13px;font-weight:700;color:var(--yellow)">${fB(ST.balance)}</span><span class="ti">Já guardado</span></div></div><div class="pm" style="margin-top:12px"><div class="pf" style="width:${sp}%;background:linear-gradient(90deg,var(--green2),var(--green))"></div></div><div class="rb"><span class="ti" style="color:var(--green)">${fP(sp)} da meta</span><span class="ti" style="color:var(--muted2)">${fB(rem)} restante</span></div><div class="tb" style="margin-top:10px">📖 "Não existe momento ideal para guardar. Quanto mais cedo, melhor." — Nigro</div></div>
+    const sh=cs>0?`<div class="card" style="border-color:rgba(74,222,128,.2)"><p class="sl">Simulação</p><div class="g2"><div class="sc" style="border-color:rgba(74,222,128,.3)"><span>💰</span><span class="mo" style="font-size:13px;font-weight:700;color:var(--green)">${fB(cs)}</span><span class="ti">Sobra/mês</span></div><div class="sc" style="border-color:rgba(6,182,212,.3)"><span>📅</span><span class="mo" style="font-size:13px;font-weight:700;color:var(--cyan)">${fB(parseFloat(ds))}</span><span class="ti">Guardar/dia</span></div><div class="sc" style="border-color:rgba(167,139,250,.3)"><span>📆</span><span class="mo" style="font-size:13px;font-weight:700;color:var(--purple)">${mn} meses</span><span class="ti">Para meta</span></div><div class="sc" style="border-color:rgba(250,204,21,.3)"><span>🏦</span><span class="mo" style="font-size:13px;font-weight:700;color:var(--yellow)">${fB(ST.balance)}</span><span class="ti">Já guardado</span></div></div><div class="pm" style="margin-top:12px"><div class="pf" style="width:${sp}%;background:linear-gradient(90deg,var(--green2),var(--green))"></div></div><div class="rb"><span class="ti" style="color:var(--green)">${fP(sp)} da meta</span><span class="ti" style="color:var(--muted2)">${fB(rem)} restante</span></div><div class="tb" style="margin-top:10px">💡 Não existe momento ideal para guardar. Quanto mais cedo você começa, melhor.</div></div>
     <div class="card"><p class="sl">Distribuição dos 30%</p>${[{l:'Reserva',p:40,c:'var(--cyan)',e:'🛡️',d:'Tesouro Selic ou CDB liq. diária'},{l:'Renda Fixa',p:30,c:'var(--green)',e:'🏦',d:'CDB >100% CDI ou LCI/LCA'},{l:'FIIs',p:20,c:'#818cf8',e:'🏢',d:'Dividendos mensais isentos'},{l:'Ações LP',p:10,c:'var(--orange)',e:'📈',d:'Fundamentos — NÃO day trade'}].map(d=>`<div style="margin-bottom:14px"><div class="rb"><span style="font-size:13px;font-weight:600">${d.e} ${d.l}</span><span class="ta mo" style="color:${d.c}">${fB(cs*.3*d.p/100)}/mês</span></div><div class="pm" style="margin-top:4px"><div class="pf" style="width:${d.p}%;background:${d.c}"></div></div><span class="ti" style="color:var(--muted2)">${d.p}% · ${d.d}</span></div>`).join('')}</div>`:'';
-    return `${snav}<div class="card"><p class="sl">🧮 Regra 50-30-10-10</p><p class="lb">Renda mensal (R$)</p><input class="ip" type="number" placeholder="Ex: 3000" value="${ci}" oninput="ci=this.value;sit('calculadora')"/><p class="lb">Gastos mensais (R$)</p><input class="ip" type="number" placeholder="Ex: 2000" value="${ce}" oninput="ce=this.value;sit('calculadora')"/><p class="lb">Meta (R$)</p><input class="ip" type="number" placeholder="100000" value="${cg}" oninput="cg=this.value;sit('calculadora')"/></div>${rh}${sh}`;
+    return `${snav}<div class="card"><p class="sl">🧮 Calculadora Financeira</p><p class="lb">Renda mensal (R$)</p><input class="ip" type="number" placeholder="Ex: 3000" value="${ci}" oninput="ci=this.value;sit('calculadora')"/><p class="lb">Gastos mensais (R$)</p><input class="ip" type="number" placeholder="Ex: 2000" value="${ce}" oninput="ce=this.value;sit('calculadora')"/><p class="lb">Meta (R$)</p><input class="ip" type="number" placeholder="100000" value="${cg}" oninput="cg=this.value;sit('calculadora')"/></div>${rh}${sh}`;
   }
   if(it==='juros'){
     // Compound interest calculator
@@ -708,20 +770,20 @@ function rInvest(){
         <div class="sc" style="border-color:rgba(167,139,250,.3)"><span>📈</span><span class="mo" style="font-size:12px;color:var(--purple)">${fB(total-totalInvested)}</span><span class="ti">Juros ganhos</span></div>
       </div>
       ${points.length>0?`<div style="margin-top:12px"><p class="sl">Evolução</p><div class="chart-wrap">${bars}</div></div>`:''}
-      <div class="tb" style="margin-top:10px">📖 Tabela do Milhão: R$1k/mês a 12%aa = R$1M em ~20 anos</div>
+      <div class="tb" style="margin-top:10px">💡 Aportes consistentes a 12%aa: R$1k/mês = R$1M em ~20 anos</div>
     </div>`:''}`;
   }
   if(it==='ia'){
-    const ah=invA?`${invA.citacaoLivro?`<div class="tb" style="border-color:rgba(167,139,250,.3);background:rgba(167,139,250,.08)">📖 <i>"${es(invA.citacaoLivro)}"</i></div>`:''}
+    const ah=invA?`${invA.citacaoLivro?`<div class="tb" style="border-color:rgba(167,139,250,.3);background:rgba(167,139,250,.08)">💡 <i>"${es(invA.citacaoLivro)}"</i></div>`:''}
     <div class="card" style="border-color:rgba(167,139,250,.2)"><div class="rb"><p class="sl">Diagnóstico</p>${invA.fase?`<span class="bg2" style="color:var(--purple);background:rgba(167,139,250,.1);font-size:10px">${invA.fase==='aspirante'?'🌱 Aspirante':invA.fase==='poupador'?'🏦 Poupador':'💼 Investidor'}</span>`:''}</div><p style="font-size:13px;line-height:1.6">${es(invA.diagnostico||'')}</p>${invA.proximoPasso?`<div class="tb" style="margin-top:10px;border-color:rgba(74,222,128,.3);background:rgba(74,222,128,.06)">✅ ${es(invA.proximoPasso)}</div>`:''}</div>
     ${invA.alertasPrioritarios?.length?`<div class="ab">${invA.alertasPrioritarios.map(a=>`<div class="ar">⚠️ <span>${es(a)}</span></div>`).join('')}</div>`:''}
     ${invA.recomendacoes?.length?`<p class="sl" style="margin-bottom:10px">🎯 Onde Investir</p>${invA.recomendacoes.map(r=>{const rc={baixo:'var(--green)',médio:'var(--yellow)',alto:'var(--red)'}[r.risco]||'var(--muted)';return `<div class="lc" style="flex-direction:column;align-items:flex-start;gap:8px"><div class="rb" style="width:100%"><div class="rw"><span style="font-size:22px">${r.emoji||'📊'}</span><div><p style="font-size:13px;font-weight:700">${es(r.titulo)}</p><p class="ti" style="color:var(--green)">${es(r.instrumento||'')}${r.ondeInvestir?' · '+es(r.ondeInvestir):''}</p></div></div><div style="text-align:right"><p class="mo" style="font-size:14px;font-weight:700;color:var(--purple)">${r.percentual}%</p><p class="ti" style="color:var(--green)">${es(r.rendimentoEstimado||'')}</p></div></div><p style="font-size:12px;color:var(--muted);line-height:1.5">${es(r.descricao||'')}</p><span class="bg2" style="color:${rc};background:${rc}18;font-size:10px">Risco ${r.risco}</span></div>`;}).join('')}`:''}`:
     '';
-    const ch=ich.map(m=>`<div class="bub ${m.role==='user'?'usr':''}"><${m.role==='assistant'?'span style="font-size:18px;flex-shrink:0">📖</span>':''}<div class="bt">${es(m.content)}</div></div>`).join('');
-    return `${snav}<div class="card" style="border-color:rgba(167,139,250,.2);background:rgba(167,139,250,.04)"><p class="sl">🤖 IA — Do Mil ao Milhão</p><p style="font-size:11px;color:var(--muted2);margin-bottom:10px">Preencha renda/gastos na Calculadora para análise precisa.</p><button class="pb" style="width:100%;padding:12px" onclick="anv()" ${ia?'disabled':''}>${ia?'🔄 Analisando...':'⚡ Gerar Análise Completa'}</button></div>
+    const ch=ich.map(m=>`<div class="bub ${m.role==='user'?'usr':''}"><${m.role==='assistant'?'span style="font-size:18px;flex-shrink:0">📈</span>':''}<div class="bt">${es(m.content)}</div></div>`).join('');
+    return `${snav}<div class="card" style="border-color:rgba(167,139,250,.2);background:rgba(167,139,250,.04)"><p class="sl">🤖 IA — Análise de Investimentos</p><p style="font-size:11px;color:var(--muted2);margin-bottom:10px">Preencha renda/gastos na Calculadora para análise precisa.</p><button class="pb" style="width:100%;padding:12px" onclick="anv()" ${ia?'disabled':''}>${ia?'🔄 Analisando...':'⚡ Gerar Análise Completa'}</button></div>
     ${ah}
     <div class="card" style="margin-top:8px"><p class="sl">💬 Perguntas sobre investimentos</p></div>
-    <div class="cb2" id="icb">${ich.length===0?`<div style="display:flex;flex-direction:column;align-items:center;padding:20px 0"><span style="font-size:36px">📖</span><p style="color:var(--muted2);font-size:12px;text-align:center;margin-top:8px">Baseado em <b style="color:var(--purple)">"Do Mil ao Milhão"</b></p><div class="sr">${['Como funciona o CDB?','Triângulo de Nigro?','Regra 50-30-10-10?','FII vs Imóvel?','Como chegar ao R$1M?'].map(s=>`<button class="sgb" onclick="sii('${s}')">${s}</button>`).join('')}</div></div>`:ch}${ial?`<div class="bub"><span style="font-size:18px">📖</span><div class="bt" style="animation:pulse 1s infinite">Consultando o livro...</div></div>`:''}</div>
+    <div class="cb2" id="icb">${ich.length===0?`<div style="display:flex;flex-direction:column;align-items:center;padding:20px 0"><span style="font-size:36px">📈</span><p style="color:var(--muted2);font-size:12px;text-align:center;margin-top:8px">Seu consultor financeiro com IA</p><div class="sr">${['Como funciona o CDB?','O que é o Tesouro Direto?','Regra 50-30-20?','FII vs Imóvel?','Como chegar ao R$1M?'].map(s=>`<button class="sgb" onclick="sii('${s}')">${s}</button>`).join('')}</div></div>`:ch}${ial?`<div class="bub"><span style="font-size:18px">📈</span><div class="bt" style="animation:pulse 1s infinite">Consultando IA...</div></div>`:''}</div>
     <div class="cr"><input class="ci" id="iai" placeholder="Pergunta sobre investimento..." onkeydown="if(event.key==='Enter')aia()"/><button class="snd" onclick="aia()" ${ial?'disabled':''}>➤</button></div>`;
   }
   return snav;
@@ -730,8 +792,8 @@ function rInvest(){
 // ═══════ AI ═══════
 function rAI(){
   const ch=ach.map(m=>`<div class="bub ${m.role==='user'?'usr':''}"><${m.role==='assistant'?'span style="font-size:18px;flex-shrink:0">💎</span>':''}<div class="bt">${es(m.content)}</div></div>`).join('');
-  return `<div class="card"><p class="sl">🤖 RICO — Do Mil ao Milhão</p><p class="mu">Aplico os 3 pilares do Thiago Nigro: Gastar Bem, Investir Melhor e Ganhar Mais.</p></div>
-  <div class="cb2" id="acb">${ach.length===0?`<div style="display:flex;flex-direction:column;align-items:center;padding:24px 0"><span style="font-size:48px">💎</span><p style="color:var(--muted2);margin-top:12px;font-size:13px;text-align:center">Baseado em <b style="color:var(--green)">"Do Mil ao Milhão"</b></p><div class="sr">${['Analisa minha situação','Regra 50-30-10-10?','Plano para R$100k','Pilar 3: ganhar mais?','Gastos compulsivos?'].map(s=>`<button class="sgb" onclick="sai('${s}')">${s}</button>`).join('')}</div></div>`:ch}${al?`<div class="bub"><span style="font-size:18px">💎</span><div class="bt" style="animation:pulse 1s infinite">Aplicando princípios do livro...</div></div>`:''}</div>
+  return `<div class="card"><p class="sl">🤖 RICO — Assistente Financeiro</p><p class="mu">Seu assistente de finanças pessoais com IA. Gastar Bem, Investir Melhor, Ganhar Mais.</p></div>
+  <div class="cb2" id="acb">${ach.length===0?`<div style="display:flex;flex-direction:column;align-items:center;padding:24px 0"><span style="font-size:48px">💎</span><p style="color:var(--muted2);margin-top:12px;font-size:13px;text-align:center">Seu assistente de finanças pessoais com IA</p><div class="sr">${['Analisa minha situação','Regra 50-30-20?','Plano para R$100k','Como ganhar mais?','Gastos compulsivos?'].map(s=>`<button class="sgb" onclick="sai('${s}')">${s}</button>`).join('')}</div></div>`:ch}${al?`<div class="bub"><span style="font-size:18px">💎</span><div class="bt" style="animation:pulse 1s infinite">Analisando sua situação...</div></div>`:''}</div>
   <div class="cr"><input class="ci" id="aii" placeholder="Escreva sua pergunta..." onkeydown="if(event.key==='Enter')aa()"/><button class="snd" onclick="aa()" ${al?'disabled':''}>➤</button></div>`;
 }
 
@@ -804,7 +866,7 @@ function sbill(){
 }
 
 function mDebt(){return `<p class="mt">Registrar Dívida</p>
-  <div class="tb" style="margin-bottom:14px">📖 "Quite dívidas PRIMEIRO. O pobre paga juros para sempre."</div>
+  <div class="tb" style="margin-bottom:14px">💡 Quite dívidas antes de investir — os juros cobrados superam qualquer rendimento.</div>
   <p class="lb">Para quem devo</p><input class="ip" id="dc" placeholder="Nubank, João..."/>
   <p class="lb">Valor (R$)</p><input class="ip" type="number" id="da" placeholder="0,00" inputmode="decimal"/>
   <p class="lb">Data vencimento</p><input class="ip" type="date" id="dd2"/>
@@ -822,7 +884,7 @@ function sdebt(){
 }
 
 function mShop(){return `<p class="mt">Adicionar Item</p>
-  <div class="tb" style="margin-bottom:14px">📖 "Pense no custo de oportunidade antes de comprar."</div>
+  <div class="tb" style="margin-bottom:14px">💡 Pense no custo de oportunidade antes de comprar — vale o seu dinheiro?</div>
   <p class="lb">Nome do item</p><input class="ip" id="sn" placeholder="Tênis, fone, notebook..."/>
   <p class="lb">Preço estimado (R$)</p><input class="ip" type="number" id="sp" placeholder="0,00" inputmode="decimal"/>
   <p class="lb">Por que quer comprar?</p><input class="ip" id="sr2" placeholder="Preciso pro trabalho..."/>
@@ -839,7 +901,7 @@ function sshop(){
 
 function mInv(){const opts=IVT.map(t=>`<option value="${t.id}">${t.emoji} ${t.label}</option>`).join('');
   return `<p class="mt">Novo Aporte</p>
-  <div class="tb" style="margin-bottom:14px">📖 Triângulo de Nigro: <b>Risco × Liquidez × Rendimento</b></div>
+  <div class="tb" style="margin-bottom:14px">💡 Triângulo do investidor: <b>Risco × Liquidez × Rendimento</b></div>
   <p class="lb">Tipo</p><select class="ip" id="it2">${opts}</select>
   <p class="lb">Nome / onde está</p><input class="ip" id="in2" placeholder="CDB Nubank, Tesouro Selic..."/>
   <p class="lb">Valor (R$)</p><input class="ip" type="number" id="ia2" placeholder="0,00" inputmode="decimal"/>
@@ -866,7 +928,7 @@ function mBudget(){
     </div>
   </div>`).join('');
   return `<p class="mt">⚙️ Limites por Categoria</p>
-  <div class="tb" style="margin-bottom:14px">📖 Regra 50-30-10-10: essenciais devem usar no máx. 50% da sua renda.</div>
+  <div class="tb" style="margin-bottom:14px">💡 Regra 50-30-20: essenciais ≤50%, qualidade de vida ≤30%, investimentos ≥20%.</div>
   ${rows}
   <button class="sb" onclick="cm();render()">✅ Salvar Limites</button><button class="cb" onclick="cm()">Cancelar</button>`;
 }
@@ -1068,7 +1130,7 @@ async function aa(){
   const tInv=ST.investments.reduce((a,b)=>a+b.amount,0);
   const dS=ST.debts.filter(d=>!d.paid).reduce((a,b)=>a+b.amount,0);
   const sup=ST.shoppingList.filter(i=>!i.bought&&i.priority==='supérfluo');
-  const sys=`${LV}\nVocê é RICO, assistente baseado em "Do Mil ao Milhão" de Thiago Nigro. Direto, empático, motivador.\nSaldo ${fB(ST.balance)} | Meta R$100k | ${fP(Math.min((ST.balance/GOAL)*100,100))} | Entradas ${fB(tIn)} | Saídas ${fB(tOut)} | Investido ${fB(tInv)} | Dívidas ${fB(dS)} | Supérfluos: ${sup.length} | Streak: ${ST.streak||0} dias\nMáx 3 parágrafos. Princípios do livro. Detecte compulsões. Meta R$100k→R$1M.`;
+  const sys=`${LV}\nVocê é RICO, assistente de finanças pessoais. Direto, empático, motivador.\nSaldo ${fB(ST.balance)} | Meta R$100k | ${fP(Math.min((ST.balance/GOAL)*100,100))} | Entradas ${fB(tIn)} | Saídas ${fB(tOut)} | Investido ${fB(tInv)} | Dívidas ${fB(dS)} | Supérfluos: ${sup.length} | Streak: ${ST.streak||0} dias\nMáx 3 parágrafos. Use os princípios de finanças pessoais. Detecte compulsões. Meta R$100k→R$1M.`;
   try{const reply=await callAI(ach.map(m=>({role:m.role,content:m.content})),sys);ach.push({role:'assistant',content:reply});}
   catch(e){ach.push({role:'assistant',content:'❌ Erro de conexão. Verifique sua internet.'});}
   al=false;sv_();render();
@@ -1079,7 +1141,7 @@ async function aia(){
   const msg=inp.value.trim();inp.value='';ial=true;
   ich.push({role:'user',content:msg});render();
   const tI=ST.investments.reduce((a,b)=>a+b.amount,0);
-  const sys=`${LV}\nVocê é RICO, consultor de investimentos baseado em "Do Mil ao Milhão".\n${fB(tI)} investidos | Saldo: ${fB(ST.balance)} | Meta: R$100k\nMáx 3 parágrafos. Exemplos em R$. Cite corretoras reais. Princípios do livro.`;
+  const sys=`${LV}\nVocê é RICO, consultor de investimentos com IA.\n${fB(tI)} investidos | Saldo: ${fB(ST.balance)} | Meta: R$100k\nMáx 3 parágrafos. Exemplos em R$. Cite corretoras reais. Use princípios sólidos de investimento.`;
   try{const reply=await callAI(ich.map(m=>({role:m.role,content:m.content})),sys);ich.push({role:'assistant',content:reply});}
   catch(e){ich.push({role:'assistant',content:'❌ Erro.'});}
   ial=false;sv_();render();
@@ -1103,7 +1165,7 @@ async function anv(){
   const res=ST.investments.filter(i=>i.type==='reserva').reduce((a,b)=>a+b.amount,0);
   const inc=parseFloat(ci)||0;const exp=parseFloat(ce)||0;const sur=inc-exp;
   const dT=ST.debts.filter(d=>!d.paid).reduce((a,b)=>a+b.amount,0);
-  const prompt=`${LV}\nAnalisar com princípios do livro:\nSaldo: ${fB(ST.balance)} | Meta: R$100k | ${fP(Math.min((ST.balance/GOAL)*100,100))}\nRenda: ${fB(inc)} | Gastos: ${fB(exp)} | Sobra: ${fB(sur)}\nInvestido: ${fB(tI)} | Reserva: ${fB(res)} | Dívidas: ${fB(dT)}\nInvestimentos: ${ST.investments.map(i=>`${i.name}(${gc(IVT,i.type).label}):${fB(i.amount)}`).join(', ')||'nenhum'}\nJSON SOMENTE:\n{"diagnostico":"...","fase":"aspirante|poupador|investidor","reservaIdeal":N,"aporteMensalIdeal":N,"mesesParaMeta":N,"recomendacoes":[{"titulo":"...","instrumento":"...","descricao":"...","percentual":N,"risco":"baixo|médio|alto","rendimentoEstimado":"...","emoji":"...","ondeInvestir":"..."}],"alertasPrioritarios":["..."],"proximoPasso":"...","citacaoLivro":"..."}`;
+  const prompt=`${LV}\nAnalisar a situação financeira e gerar recomendações:\nSaldo: ${fB(ST.balance)} | Meta: R$100k | ${fP(Math.min((ST.balance/GOAL)*100,100))}\nRenda: ${fB(inc)} | Gastos: ${fB(exp)} | Sobra: ${fB(sur)}\nInvestido: ${fB(tI)} | Reserva: ${fB(res)} | Dívidas: ${fB(dT)}\nInvestimentos: ${ST.investments.map(i=>`${i.name}(${gc(IVT,i.type).label}):${fB(i.amount)}`).join(', ')||'nenhum'}\nJSON SOMENTE:\n{"diagnostico":"...","fase":"aspirante|poupador|investidor","reservaIdeal":N,"aporteMensalIdeal":N,"mesesParaMeta":N,"recomendacoes":[{"titulo":"...","instrumento":"...","descricao":"...","percentual":N,"risco":"baixo|médio|alto","rendimentoEstimado":"...","emoji":"...","ondeInvestir":"..."}],"alertasPrioritarios":["..."],"proximoPasso":"...","citacaoLivro":"..."}`;
   try{
     const raw=await callAI([{role:'user',content:prompt}],'Responda apenas JSON válido sem markdown.');
     invA=JSON.parse(raw.replace(/```json|```/g,'').trim());
@@ -1114,8 +1176,8 @@ async function anv(){
 // ═══════ PWA ═══════
 function injectManifest(){
   const m={
-    name:'RICO — Do Mil ao Milhão',short_name:'RICO',
-    description:'Controle financeiro baseado no livro Do Mil ao Milhão — Thiago Nigro',
+    name:'RICO — Controle Financeiro',short_name:'RICO',
+    description:'Controle financeiro inteligente com IA — gerencie seu dinheiro e conquiste seus objetivos.',
     start_url:'.',display:'standalone',background_color:'#06060f',
     theme_color:'#06060f',orientation:'portrait-primary',
     categories:['finance','productivity'],
