@@ -151,20 +151,24 @@ async function doRegister() {
   btn.disabled = false; btn.textContent = 'Criar Conta Gratuita';
 }
 
+function _getLogoutBtn(){ return document.getElementById('btn-logout'); }
+
 async function doLogout() {
-  const btn = document.querySelector('#header button[onclick="doLogout()"], #header .ib');
+  const btn = _getLogoutBtn();
   if(btn){ btn.disabled=true; btn.textContent='Saindo...'; }
   try {
-    // Timeout de 3s: se o Supabase travar por Lock, força logout manual
+    // Timeout de 3s: se o Supabase travar, força logout manual
     await Promise.race([
       supabaseClient.auth.signOut(),
       new Promise((_,rej) => setTimeout(() => rej(new Error('timeout')), 3000))
     ]);
+    // signOut() OK — SIGNED_OUT event limpa o estado; reseta botão por segurança
+    if(btn){ btn.disabled=false; btn.textContent='Sair'; }
   } catch(e) {
-    // Fallback: limpa sessão manualmente e recarrega
+    // Fallback: limpa localStorage e recarrega
     Object.keys(localStorage).filter(k => k.startsWith('sb-')).forEach(k => localStorage.removeItem(k));
+    try{ localStorage.removeItem(KEY); }catch(_){}
     window.location.reload();
-    return;
   }
 }
 
@@ -197,84 +201,116 @@ async function loadData(){
 }
 
 async function ld(){
-  // ── Restaurar cache local (dados aparecem instantaneamente no refresh) ──
+  // ════════════════════════════════════════════════════════════
+  // PASSO 1 — Ler cache do localStorage
+  // ════════════════════════════════════════════════════════════
   let cachedUid = null;
-  const s=localStorage.getItem(KEY);
+  const s = localStorage.getItem(KEY);
   if(s){
     try{
-      const d=JSON.parse(s);
-      ach=d.aiChat||[]; ich=d.invChat||[];
+      const d = JSON.parse(s);
+      ach = d.aiChat||[]; ich = d.invChat||[];
       if(d.cache){
-        cachedUid = d.cache.uid;
-        // Preenchemos ST agora; loadData() sobrescreverá com dados frescos do Supabase
-        ST.balance          = d.cache.balance          ?? ST.balance;
-        ST.transactions     = d.cache.transactions     ?? ST.transactions;
-        ST.bills            = d.cache.bills            ?? ST.bills;
-        ST.debts            = d.cache.debts            ?? ST.debts;
-        ST.shoppingList     = d.cache.shoppingList     ?? ST.shoppingList;
-        ST.investments      = d.cache.investments      ?? ST.investments;
-        ST.budgetLimits     = d.cache.budgetLimits     ?? ST.budgetLimits;
-        ST.streak           = d.cache.streak           ?? ST.streak;
-        ST.lastNoSpurfluous = d.cache.lastNoSpurfluous ?? ST.lastNoSpurfluous;
-        ST.balanceHistory   = d.cache.balanceHistory   ?? ST.balanceHistory;
-        ST.theme            = d.cache.theme            ?? ST.theme;
+        cachedUid               = d.cache.uid;
+        ST.balance              = d.cache.balance          ?? 0;
+        ST.transactions         = d.cache.transactions     ?? [];
+        ST.bills                = d.cache.bills            ?? [];
+        ST.debts                = d.cache.debts            ?? [];
+        ST.shoppingList         = d.cache.shoppingList     ?? [];
+        ST.investments          = d.cache.investments      ?? [];
+        ST.budgetLimits         = d.cache.budgetLimits     ?? {};
+        ST.streak               = d.cache.streak           ?? 0;
+        ST.lastNoSpurfluous     = d.cache.lastNoSpurfluous ?? null;
+        ST.balanceHistory       = d.cache.balanceHistory   ?? [];
+        ST.theme                = d.cache.theme            ?? 'dark';
       }
     }catch(e){}
   }
 
-  // Guarda para evitar inicialização dupla (INITIAL_SESSION + getSession)
+  // ════════════════════════════════════════════════════════════
+  // PASSO 2 — Se há cache, mostrar o app IMEDIATAMENTE
+  //           (antes de qualquer chamada de rede)
+  // ════════════════════════════════════════════════════════════
+  if(cachedUid){
+    document.getElementById('auth-overlay').style.display = 'none';
+    document.getElementById('app').style.display          = 'flex';
+    applyTheme();
+    render(); // dados do cache aparecem sem piscar
+  }
+
+  // ════════════════════════════════════════════════════════════
+  // PASSO 3 — Funções de controle de sessão
+  // ════════════════════════════════════════════════════════════
   let _appStarted = false;
+
+  function _resetAuthButtons(){
+    const lb = document.querySelector('#auth-overlay .sb');
+    const rb = document.querySelector('#auth-overlay .cb');
+    const ob = _getLogoutBtn();
+    if(lb){ lb.disabled=false; lb.textContent='Entrar'; }
+    if(rb){ rb.disabled=false; rb.textContent='Criar Conta Gratuita'; }
+    if(ob){ ob.disabled=false; ob.textContent='Sair'; }
+  }
 
   async function startApp(user){
     if(_appStarted) return;
     _appStarted = true;
     currentUser = user;
-    const loginBtn = document.querySelector('#auth-overlay .sb');
-    if(loginBtn){ loginBtn.disabled=false; loginBtn.textContent='Entrar'; }
-    document.getElementById('auth-overlay').style.display='none';
-    document.getElementById('app').style.display='flex';
 
-    // Se há cache do mesmo usuário, mostra imediatamente (sem esperar Supabase)
-    if(cachedUid === user.id){
-      applyTheme(); render();
-    }
+    _resetAuthButtons(); // garante que nenhum botão fique preso
+
+    document.getElementById('auth-overlay').style.display = 'none';
+    document.getElementById('app').style.display          = 'flex';
 
     // Carrega dados frescos do Supabase (sobrescreve o cache)
     await loadData();
     applyTheme(); processRecurring(); updateStreak(); recordBalance();
-    flushQueue(); checkBillNotifications(); injectManifest(); registerSW(); showIOSHint(); render();
-    sv_(); // Atualiza o cache com os dados frescos do Supabase
+    flushQueue(); checkBillNotifications(); injectManifest(); registerSW(); showIOSHint();
+    render();
+    sv_(); // persiste cache atualizado com dados do Supabase
   }
 
-  // onAuthStateChange: cobre login novo (SIGNED_IN), refresh de página (INITIAL_SESSION)
-  // e renovação de token (TOKEN_REFRESHED)
+  function _handleSignOut(){
+    _appStarted  = false;
+    currentUser  = null;
+    ST = {balance:0,transactions:[],bills:[],debts:[],
+          shoppingList:[],investments:[],aiChat:[],invChat:[],
+          budgetLimits:{},streak:0,lastNoSpurfluous:null,
+          balanceHistory:[],theme:'dark'};
+    try{ localStorage.removeItem(KEY); }catch(e){}
+    _resetAuthButtons();
+    document.getElementById('auth-overlay').style.display = 'flex';
+    document.getElementById('app').style.display          = 'none';
+  }
+
+  // ════════════════════════════════════════════════════════════
+  // PASSO 4 — Listener de autenticação reactiva
+  // ════════════════════════════════════════════════════════════
   supabaseClient.auth.onAuthStateChange(async (event, session) => {
     if(session && (event==='SIGNED_IN' || event==='INITIAL_SESSION' || event==='TOKEN_REFRESHED')){
       await startApp(session.user);
     } else if(event==='SIGNED_OUT'){
-      _appStarted = false;
-      currentUser = null;
-      ST = {balance:0,transactions:[],bills:[],debts:[],shoppingList:[],investments:[],aiChat:[],invChat:[],budgetLimits:{},streak:0,lastNoSpurfluous:null,balanceHistory:[],theme:'dark'};
-      try{ localStorage.removeItem(KEY); }catch(e){} // Limpa cache ao sair
-      const loginBtn = document.querySelector('#auth-overlay .sb');
-      const regBtn   = document.querySelector('#auth-overlay .cb');
-      if(loginBtn){ loginBtn.disabled=false; loginBtn.textContent='Entrar'; }
-      if(regBtn)  { regBtn.disabled=false;   regBtn.textContent='Criar Conta Gratuita'; }
-      document.getElementById('auth-overlay').style.display='flex';
-      document.getElementById('app').style.display='none';
+      _handleSignOut();
     }
   });
 
-  // Fallback: getSession garante exibição correta se INITIAL_SESSION não disparar
+  // ════════════════════════════════════════════════════════════
+  // PASSO 5 — Verificação síncrona da sessão (fallback)
+  // ════════════════════════════════════════════════════════════
   const { data: { session } } = await supabaseClient.auth.getSession();
   if(session){
-    await startApp(session.user); // no-op se INITIAL_SESSION já chamou startApp
+    await startApp(session.user); // no-op se INITIAL_SESSION já iniciou
     return true;
   }
-  // Se não há sessão E INITIAL_SESSION ainda não resolveu, mostrar login
+
+  // Sem sessão válida
   if(!_appStarted){
-    document.getElementById('auth-overlay').style.display='flex';
-    document.getElementById('app').style.display='none';
+    if(cachedUid){
+      // Tinha cache mas sessão expirou — limpa cache e força login
+      try{ localStorage.removeItem(KEY); }catch(e){}
+    }
+    document.getElementById('auth-overlay').style.display = 'flex';
+    document.getElementById('app').style.display          = 'none';
   }
   return false;
 }
