@@ -19,7 +19,7 @@ let ci='',ce='',cg='100000',compInitial='',compMonthly='',compRate='12',compYear
 let al=false,ial=false,ap=false,ia=false,invA=null;
 let ach=[],ich=[];
 // filtros/paginação transações
-let txPage=0,txPerPage=15,txFilterMonth='',txFilterCat='',txFilterType='';
+let txPage=0,txPerPage=15,txFilterMonth='',txFilterCat='',txFilterType='',txSearch='';
 
 // ═══════ SUPABASE INITIALIZATION ═══════
 const supabaseUrl = import.meta.env?.VITE_SUPABASE_URL || 'https://vizsvjysklidnkzqxltn.supabase.co';
@@ -506,6 +506,19 @@ function rDash(){
   const dO=ST.debts.filter(d=>!d.paid);
   const dS=dO.reduce((a,b)=>a+b.amount,0);
   const sup=ST.shoppingList.filter(i=>!i.bought&&i.priority==='supérfluo');
+  // ── Patrimônio líquido e métricas mensais ──
+  const netWorth=ST.balance+tInv-dS;
+  const _pd=new Date();_pd.setMonth(_pd.getMonth()-1);
+  const prevM=`${_pd.getFullYear()}-${String(_pd.getMonth()+1).padStart(2,'0')}`;
+  const curMIn=ST.transactions.filter(t=>t.type==='income'&&t.date?.startsWith(nm())).reduce((a,b)=>a+b.amount,0);
+  const curMOut=ST.transactions.filter(t=>t.type==='expense'&&t.date?.startsWith(nm())).reduce((a,b)=>a+b.amount,0);
+  const prevMIn=ST.transactions.filter(t=>t.type==='income'&&t.date?.startsWith(prevM)).reduce((a,b)=>a+b.amount,0);
+  const prevMOut=ST.transactions.filter(t=>t.type==='expense'&&t.date?.startsWith(prevM)).reduce((a,b)=>a+b.amount,0);
+  const savingsRate=curMIn>0?((curMIn-curMOut)/curMIn*100):0;
+  const srColor=savingsRate>=20?'var(--green)':savingsRate>=10?'var(--yellow)':'var(--red)';
+  const inArr=prevMIn>0?(curMIn>=prevMIn?`<span style="color:var(--green);font-size:9px">↑${Math.round((curMIn-prevMIn)/prevMIn*100)}%</span>`:`<span style="color:var(--red);font-size:9px">↓${Math.round((prevMIn-curMIn)/prevMIn*100)}%</span>`):'';
+  const outArr=prevMOut>0?(curMOut<=prevMOut?`<span style="color:var(--green);font-size:9px">↓${Math.round((prevMOut-curMOut)/prevMOut*100)}%</span>`:`<span style="color:var(--red);font-size:9px">↑${Math.round((curMOut-prevMOut)/prevMOut*100)}%</span>`):'';
+  const netWorthCard=`<div class="g2" style="margin-bottom:0"><div class="sc" style="border-color:${netWorth>=0?'rgba(74,222,128,.3)':'rgba(248,113,113,.3)'}"><span>💰</span><span class="mo" style="font-size:14px;font-weight:800;color:${netWorth>=0?'var(--green)':'var(--red)'}">${fB(netWorth)}</span><span class="ti">Patrimônio Líquido</span></div><div class="sc" style="border-color:${srColor}33"><span>🏦</span><span class="mo" style="font-size:14px;font-weight:800;color:${srColor}">${fP(savingsRate)}</span><span class="ti">Taxa de Poupança</span><span class="ti" style="font-size:9px;color:var(--muted2)">ideal ≥ 20%</span></div></div>`;
 
   // Alerts
   let alHTML='';
@@ -552,6 +565,16 @@ function rDash(){
   const catSpend={};
   curMTx.forEach(t=>{catSpend[t.category]=(catSpend[t.category]||0)+t.amount;});
   const totalMthExp=Object.values(catSpend).reduce((a,b)=>a+b,0);
+  // ── Donut chart de gastos por categoria (conic-gradient) ──
+  let donutHTML='';
+  if(totalMthExp>0){
+    const sorted=Object.entries(catSpend).sort((a,b)=>b[1]-a[1]);
+    let cumDeg=0;
+    const stops=sorted.map(([catId,spent])=>{const deg=(spent/totalMthExp)*360;const color=gc(TXC,catId).color;const s=cumDeg;cumDeg+=deg;return `${color} ${s.toFixed(1)}deg ${cumDeg.toFixed(1)}deg`;});
+    const gradient=`conic-gradient(${stops.join(',')})`;
+    const legend=sorted.slice(0,5).map(([catId,spent])=>{const cat=gc(TXC,catId);const pct=(spent/totalMthExp*100).toFixed(0);return `<div class="rw" style="gap:6px;margin-bottom:5px;align-items:center"><div style="width:9px;height:9px;border-radius:50%;background:${cat.color};flex-shrink:0"></div><span style="font-size:11px;color:var(--muted2);flex:1">${cat.emoji} ${cat.label}</span><span style="font-size:11px;font-weight:600">${pct}% · ${fB(spent)}</span></div>`;}).join('');
+    donutHTML=`<div class="card"><p class="sl" style="margin-bottom:12px">Gastos por categoria · ${MO[new Date().getMonth()]}</p><div style="display:flex;align-items:center;gap:18px"><div style="width:84px;height:84px;border-radius:50%;background:${gradient};flex-shrink:0;position:relative"><div style="position:absolute;inset:16px;border-radius:50%;background:var(--bg2);display:flex;align-items:center;justify-content:center"><span style="font-size:9px;font-weight:700;color:var(--muted2)">${fB(totalMthExp)}</span></div></div><div style="flex:1">${legend}</div></div></div>`;
+  }
   let budgetHTML='';
   if(totalMthExp>0&&Object.keys(ST.budgetLimits||{}).length>0){
     const rows=Object.entries(ST.budgetLimits).filter(([,v])=>v>0).map(([catId,limit])=>{
@@ -589,18 +612,19 @@ function rDash(){
   </div>`;
 
   return `${welcomeHTML}
+  ${netWorthCard}
   <div class="card" style="animation:glow 3s infinite">
     <div class="rb"><span class="sl">META R$ 100.000</span><span class="bg2" style="color:var(--green);background:rgba(74,222,128,.1)">${fP(prog)}</span></div>
     <div class="tr"><div class="tf" style="width:${prog}%"></div></div>
     <div class="rb"><span class="mu">${fB(ST.balance)} guardado</span><span class="mu">${fB(Math.max(GOAL-ST.balance,0))} restante</span></div>
   </div>
   <div class="g2">
-    <div class="sc" style="border-color:rgba(74,222,128,.3)"><span>📈</span><span class="mo" style="font-size:14px;font-weight:700;color:var(--green)">${fB(tIn)}</span><span class="ti">Entradas</span></div>
-    <div class="sc" style="border-color:rgba(248,113,113,.3)"><span>📉</span><span class="mo" style="font-size:14px;font-weight:700;color:var(--red)">${fB(tOut)}</span><span class="ti">Saídas</span></div>
+    <div class="sc" style="border-color:rgba(74,222,128,.3)"><span>📈</span><span class="mo" style="font-size:14px;font-weight:700;color:var(--green)">${fB(curMIn)}</span><span class="ti">Entradas/mês</span>${inArr}</div>
+    <div class="sc" style="border-color:rgba(248,113,113,.3)"><span>📉</span><span class="mo" style="font-size:14px;font-weight:700;color:var(--red)">${fB(curMOut)}</span><span class="ti">Saídas/mês</span>${outArr}</div>
     <div class="sc" style="border-color:rgba(250,204,21,.3)"><span>📋</span><span class="mo" style="font-size:14px;font-weight:700;color:var(--yellow)">${fB(bS)}</span><span class="ti">Contas/mês</span><span class="ti" style="color:var(--muted2)">${bP}/${cB.length} pagas</span></div>
     <div class="sc" style="border-color:rgba(167,139,250,.3)"><span>📈</span><span class="mo" style="font-size:14px;font-weight:700;color:var(--purple)">${fB(tInv)}</span><span class="ti">Investido</span><span class="ti" style="color:var(--muted2)">🛡️ ${fB(res)}</span></div>
   </div>
-  ${alHTML}${streakHTML}${chartHTML}${budgetHTML}
+  ${alHTML}${streakHTML}${chartHTML}${donutHTML}${budgetHTML}
   <div class="card">
     <div class="rb"><span class="sl">Transações recentes</span>
       <div class="rw" style="gap:6px">
@@ -635,6 +659,7 @@ function rHistory(){
   if(txFilterMonth) list=list.filter(t=>t.date?.startsWith(txFilterMonth));
   if(txFilterCat)   list=list.filter(t=>t.category===txFilterCat);
   if(txFilterType)  list=list.filter(t=>t.type===txFilterType);
+  if(txSearch)      list=list.filter(t=>t.desc?.toLowerCase().includes(txSearch.toLowerCase()));
 
   // stats for filtered set
   const fIn=list.filter(t=>t.type==='income').reduce((a,b)=>a+b.amount,0);
@@ -647,7 +672,7 @@ function rHistory(){
   const slice=list.slice(page*txPerPage,(page+1)*txPerPage);
 
   const catOpts=TXC.map(c=>`<option value="${c.id}" ${txFilterCat===c.id?'selected':''}>${c.emoji} ${c.label}</option>`).join('');
-  const hasFilters=txFilterMonth||txFilterCat||txFilterType;
+  const hasFilters=txFilterMonth||txFilterCat||txFilterType||txSearch;
 
   return `
   <div class="card" style="padding:12px">
@@ -659,6 +684,7 @@ function rHistory(){
         <button class="gb" onclick="om('tx')">+ Nova</button>
       </div>
     </div>
+    <input class="ip" style="padding:7px 10px;font-size:12px;margin-bottom:8px" placeholder="🔍 Buscar por descrição..." value="${es(txSearch)}" oninput="setTxSearch(this.value)"/>
     <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px">
       <select class="ip" style="flex:1;min-width:100px;padding:6px 8px;font-size:11px" onchange="setTxFilterMonth(this.value)">
         <option value="">Todos os meses</option>${monthOpts}
@@ -708,7 +734,7 @@ function rBills(){
     const[y,m]=b.month.split('-');
     return `<div class="lc" style="opacity:.4"><div class="dot" style="background:#334155">${gc(BLC,b.category).emoji}</div><div class="f1"><span class="td">${es(b.name)}</span><span class="ti">${MO[parseInt(m)-1]}/${y}</span></div><span class="ta mo">${fB(b.amount)}</span></div>`;
   }).join('');
-  return `<div class="card"><div class="rb"><div><p class="sl">Contas do Mês</p><p class="mu">${MO[new Date().getMonth()]} ${new Date().getFullYear()}</p></div><button class="pb" onclick="om('bill')">+ Nova</button></div>
+  return `<div class="card"><div class="rb"><div><p class="sl">Contas do Mês</p><p class="mu">${MO[new Date().getMonth()]} ${new Date().getFullYear()}</p></div><div class="rw" style="gap:6px"><button class="gb" onclick="copyPrevBills()" title="Copiar contas do mês anterior">📋 Copiar mês ant.</button><button class="pb" onclick="om('bill')">+ Nova</button></div></div>
     <div class="pm" style="margin-top:12px"><div class="pf" style="width:${pct}%;background:var(--green)"></div></div>
     <div class="rb"><span class="mu" style="color:var(--green)">✓ ${fB(bP)} pago</span><span class="mu" style="color:var(--red)">✗ ${fB(bS-bP)} pendente</span></div>
   </div>${rows}${hist?`<p class="sl" style="margin-top:16px;margin-bottom:8px">Histórico</p>${hist}`:''}`;
@@ -1307,8 +1333,29 @@ function showIOSHint(){
 function setTxFilterMonth(v){ txFilterMonth=v; txPage=0; render(); }
 function setTxFilterCat(v)  { txFilterCat=v;   txPage=0; render(); }
 function setTxFilterType(v) { txFilterType=v;  txPage=0; render(); }
-function clearTxFilters()   { txFilterMonth=''; txFilterCat=''; txFilterType=''; txPage=0; render(); }
+function clearTxFilters()   { txFilterMonth=''; txFilterCat=''; txFilterType=''; txSearch=''; txPage=0; render(); }
 function setTxPage(v)       { txPage=v; render(); }
+function setTxSearch(v)     { txSearch=v; txPage=0; render(); }
+
+// Copia as contas do mês anterior para o mês atual (sem duplicar nomes)
+function copyPrevBills(){
+  const _pd=new Date();_pd.setMonth(_pd.getMonth()-1);
+  const prevM=`${_pd.getFullYear()}-${String(_pd.getMonth()+1).padStart(2,'0')}`;
+  const thisM=nm();
+  const prevBills=ST.bills.filter(b=>b.month===prevM);
+  if(!prevBills.length){showToast('Nenhuma conta no mês anterior','var(--red)');return;}
+  const existing=new Set(ST.bills.filter(b=>b.month===thisM).map(b=>b.name.toLowerCase()));
+  let added=0;
+  prevBills.forEach(b=>{
+    if(existing.has(b.name.toLowerCase()))return;
+    const newBill={id:Date.now()+Math.random(),name:b.name,amount:b.amount,category:b.category,dueDay:b.dueDay,month:thisM,paid:false};
+    ST.bills.push(newBill);
+    saveRow('bills',{user_id:currentUser?.id,created_id:String(newBill.id),name:b.name,amount:b.amount,category:b.category,due_day:b.dueDay,month:thisM,paid:false});
+    added++;
+  });
+  if(added>0){sv_();render();showToast(`${added} conta${added>1?'s':''} copiada${added>1?'s':''} ✓`);}
+  else showToast('Todas as contas já existem neste mês','var(--red)');
+}
 function setComp(field, v)  {
   if(field==='initial') compInitial=v;
   else if(field==='monthly') compMonthly=v;
@@ -1346,7 +1393,8 @@ Object.assign(window, {
   aa, aia, anv,
   // Setters para variáveis de módulo
   setTxFilterMonth, setTxFilterCat, setTxFilterType,
-  clearTxFilters, setTxPage, setComp
+  clearTxFilters, setTxPage, setTxSearch, setComp,
+  copyPrevBills
 });
 
 // ═══════ INIT ═══════
