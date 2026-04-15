@@ -230,6 +230,13 @@ async function ld(){
   return true;
 }
 
+// Helper: salva uma linha imediatamente (sem esperar debounce)
+function saveRow(table, row, onConflict='created_id'){
+  if(!currentUser) return;
+  supabaseClient.from(table).upsert(row, {onConflict})
+    .then(({error}) => { if(error) console.error(`[save:${table}]`, error.message); });
+}
+
 async function pushToSupabase() {
   if (!currentUser) return;
   // profiles usa id (PK) como conflict — funciona direto
@@ -736,9 +743,12 @@ function stx(){
   if(!amount||!desc)return;
   const category=type==='expense'?document.getElementById('tc').value:'outros';
   const recurring=document.getElementById('trec')?.checked||false;
-  ST.transactions.unshift({id:Date.now(),type,amount,desc,category,date:new Date().toISOString(),recurring,recurringFrom:null});
+  const newTx={id:Date.now(),type,amount,desc,category,date:new Date().toISOString(),recurring,recurringFrom:null};
+  ST.transactions.unshift(newTx);
   ST.balance+=type==='income'?amount:-amount;
-  recordBalance();sv_();cm();render();
+  recordBalance();
+  saveRow('transactions',{user_id:currentUser?.id,created_id:String(newTx.id),type,amount,description:desc,category,date:newTx.date,recurring,recurring_from:null});
+  sv_();cm();render();
 }
 
 function mBill(){const mo=nm();return `<p class="mt">Nova Conta</p>
@@ -752,7 +762,9 @@ function sbill(){
   const name=document.getElementById('bn').value.trim();
   const amount=parseFloat(document.getElementById('ba').value.replace(',','.'));
   if(!name||!amount)return;
-  ST.bills.push({id:Date.now(),name,amount,category:document.getElementById('bc').value,dueDay:parseInt(document.getElementById('bd').value)||null,month:document.getElementById('bm').value,paid:false});
+  const newBill={id:Date.now(),name,amount,category:document.getElementById('bc').value,dueDay:parseInt(document.getElementById('bd').value)||null,month:document.getElementById('bm').value,paid:false};
+  ST.bills.push(newBill);
+  saveRow('bills',{user_id:currentUser?.id,created_id:String(newBill.id),name,amount,category:newBill.category,due_day:newBill.dueDay,month:newBill.month,paid:false});
   sv_();cm();render();
 }
 
@@ -768,7 +780,9 @@ function sdebt(){
   const creditor=document.getElementById('dc').value.trim();
   const amount=parseFloat(document.getElementById('da').value.replace(',','.'));
   if(!creditor||!amount)return;
-  ST.debts.push({id:Date.now(),creditor,amount,dueDate:document.getElementById('dd2').value,note:document.getElementById('dn').value,paid:false});
+  const newDebt={id:Date.now(),creditor,amount,dueDate:document.getElementById('dd2').value,note:document.getElementById('dn').value,paid:false};
+  ST.debts.push(newDebt);
+  saveRow('debts',{user_id:currentUser?.id,created_id:String(newDebt.id),creditor,amount,due_date:newDebt.dueDate||null,note:newDebt.note||null,paid:false});
   sv_();cm();render();
 }
 
@@ -782,7 +796,9 @@ function mShop(){return `<p class="mt">Adicionar Item</p>
 function sshop(){
   const name=document.getElementById('sn').value.trim();
   if(!name)return;
-  ST.shoppingList.push({id:Date.now(),name,estimatedPrice:parseFloat(document.getElementById('sp').value||'0'),reason:document.getElementById('sr2').value||null,priority:null,aiJustification:null,bought:false,boughtAt:null});
+  const newShop={id:Date.now(),name,estimatedPrice:parseFloat(document.getElementById('sp').value||'0'),reason:document.getElementById('sr2').value||null,priority:null,aiJustification:null,bought:false,boughtAt:null};
+  ST.shoppingList.push(newShop);
+  saveRow('shopping_list',{user_id:currentUser?.id,created_id:String(newShop.id),name,estimated_price:newShop.estimatedPrice,reason:newShop.reason,priority:null,ai_justification:null,bought:false,bought_at:null});
   sv_();cm();render();
 }
 
@@ -800,7 +816,9 @@ function sinv(){
   const name=document.getElementById('in2').value.trim();
   const amount=parseFloat(document.getElementById('ia2').value.replace(',','.'));
   if(!name||!amount)return;
-  ST.investments.unshift({id:Date.now(),type:document.getElementById('it2').value,name,amount,returnRate:parseFloat(document.getElementById('ir2').value||'0'),note:document.getElementById('io2').value,date:new Date().toISOString()});
+  const newInv={id:Date.now(),type:document.getElementById('it2').value,name,amount,returnRate:parseFloat(document.getElementById('ir2').value||'0'),note:document.getElementById('io2').value,date:new Date().toISOString()};
+  ST.investments.unshift(newInv);
+  saveRow('investments',{user_id:currentUser?.id,created_id:String(newInv.id),type:newInv.type,name,amount,return_rate:newInv.returnRate,note:newInv.note||null,date:newInv.date});
   sv_();cm();render();
 }
 
@@ -1148,3 +1166,11 @@ document.getElementById('btn-login').addEventListener('click', doLogin);
 document.getElementById('btn-register').addEventListener('click', doRegister);
 document.getElementById('auth-pass').addEventListener('keydown', function(e){if(e.key==='Enter')doLogin();});
 document.getElementById('auth-email').addEventListener('keydown', function(e){if(e.key==='Enter')doLogin();});
+
+// Flush pending sync before page unload (evita perda de dados na recarga)
+window.addEventListener('beforeunload', () => {
+  if(currentUser && syncTimer){
+    clearTimeout(syncTimer);
+    pushToSupabase();
+  }
+});
