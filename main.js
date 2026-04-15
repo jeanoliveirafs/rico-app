@@ -22,8 +22,8 @@ let ach=[],ich=[];
 let txPage=0,txPerPage=15,txFilterMonth='',txFilterCat='',txFilterType='';
 
 // ═══════ SUPABASE INITIALIZATION ═══════
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://vizsvjysklidnkzqxltn.supabase.co';
-const supabaseKey = import.meta.env.VITE_SUPABASE_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZpenN2anlza2xpZG5renF4bHRuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU0NTMyOTEsImV4cCI6MjA5MTAyOTI5MX0.PDuihuZjEUyTwPIXSsXagKA5H0L7Cd0aATnZjUAbtLg';
+const supabaseUrl = import.meta.env?.VITE_SUPABASE_URL || 'https://vizsvjysklidnkzqxltn.supabase.co';
+const supabaseKey = import.meta.env?.VITE_SUPABASE_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZpenN2anlza2xpZG5renF4bHRuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU0NTMyOTEsImV4cCI6MjA5MTAyOTI5MX0.PDuihuZjEUyTwPIXSsXagKA5H0L7Cd0aATnZjUAbtLg';
 const supabaseClient = window.supabase.createClient(supabaseUrl, supabaseKey);
 let currentUser = null;
 
@@ -493,18 +493,18 @@ function rHistory(){
       </div>
     </div>
     <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px">
-      <select class="ip" style="flex:1;min-width:100px;padding:6px 8px;font-size:11px" onchange="txFilterMonth=this.value;txPage=0;render()">
+      <select class="ip" style="flex:1;min-width:100px;padding:6px 8px;font-size:11px" onchange="setTxFilterMonth(this.value)">
         <option value="">Todos os meses</option>${monthOpts}
       </select>
-      <select class="ip" style="flex:1;min-width:100px;padding:6px 8px;font-size:11px" onchange="txFilterCat=this.value;txPage=0;render()">
+      <select class="ip" style="flex:1;min-width:100px;padding:6px 8px;font-size:11px" onchange="setTxFilterCat(this.value)">
         <option value="">Todas categorias</option>${catOpts}
       </select>
-      <select class="ip" style="flex:1;min-width:80px;padding:6px 8px;font-size:11px" onchange="txFilterType=this.value;txPage=0;render()">
+      <select class="ip" style="flex:1;min-width:80px;padding:6px 8px;font-size:11px" onchange="setTxFilterType(this.value)">
         <option value="" ${!txFilterType?'selected':''}>Todos</option>
         <option value="income" ${txFilterType==='income'?'selected':''}>Entradas</option>
         <option value="expense" ${txFilterType==='expense'?'selected':''}>Saídas</option>
       </select>
-      ${hasFilters?`<button class="ib" style="padding:6px 8px;font-size:11px;color:var(--muted)" onclick="txFilterMonth='';txFilterCat='';txFilterType='';txPage=0;render()">✕ Limpar</button>`:''}
+      ${hasFilters?`<button class="ib" style="padding:6px 8px;font-size:11px;color:var(--muted)" onclick="clearTxFilters()">✕ Limpar</button>`:''}
     </div>
     ${total>0?`<div class="rw" style="gap:8px;margin-bottom:8px;font-size:11px;color:var(--muted2)">
       <span style="color:var(--green)">+${fB(fIn)}</span>
@@ -514,9 +514,9 @@ function rHistory(){
     </div>`:''}
     ${slice.length===0?'<p style="color:var(--muted);font-size:12px;text-align:center;padding:18px 0">Nenhuma transação encontrada</p>':slice.map(tx=>txRow(tx)).join('')}
     ${pages>1?`<div class="rw" style="justify-content:center;gap:8px;margin-top:10px">
-      <button class="ib" style="padding:4px 10px" ${page===0?'disabled':''} onclick="txPage=${page-1};render()">‹</button>
+      <button class="ib" style="padding:4px 10px" ${page===0?'disabled':''} onclick="setTxPage(${page-1})">‹</button>
       <span style="font-size:12px;color:var(--muted2)">${page+1} / ${pages}</span>
-      <button class="ib" style="padding:4px 10px" ${page>=pages-1?'disabled':''} onclick="txPage=${page+1};render()">›</button>
+      <button class="ib" style="padding:4px 10px" ${page>=pages-1?'disabled':''} onclick="setTxPage(${page+1})">›</button>
     </div>`:''}
   </div>`;
 }
@@ -629,9 +629,9 @@ function rInvest(){
       return `<div class="chart-bar-group"><div class="chart-bars"><div class="chart-bar" style="height:${ht}px;background:linear-gradient(180deg,var(--purple),var(--green));width:12px"></div></div>${isM?`<span class="chart-lbl">${p.y}a</span>`:'<span class="chart-lbl"></span>'}</div>`;
     }).join('');
     return `${snav}<div class="card"><p class="sl">📐 Simulador de Juros Compostos</p>
-    <p class="lb">Capital inicial (R$)</p><input class="ip" type="number" placeholder="Ex: 1000" value="${compInitial}" oninput="compInitial=this.value;sit('juros')"/>
-    <p class="lb">Aporte mensal (R$)</p><input class="ip" type="number" placeholder="Ex: 500" value="${compMonthly}" oninput="compMonthly=this.value;sit('juros')"/>
-    <div style="display:flex;gap:10px"><div style="flex:1"><p class="lb">Taxa anual (%)</p><input class="ip" type="number" placeholder="12" value="${compRate}" oninput="compRate=this.value;sit('juros')"/></div><div style="flex:1"><p class="lb">Prazo (anos)</p><input class="ip" type="number" placeholder="20" value="${compYears}" oninput="compYears=this.value;sit('juros')"/></div></div></div>
+    <p class="lb">Capital inicial (R$)</p><input class="ip" type="number" placeholder="Ex: 1000" value="${compInitial}" oninput="setComp('initial',this.value)"/>
+    <p class="lb">Aporte mensal (R$)</p><input class="ip" type="number" placeholder="Ex: 500" value="${compMonthly}" oninput="setComp('monthly',this.value)"/>
+    <div style="display:flex;gap:10px"><div style="flex:1"><p class="lb">Taxa anual (%)</p><input class="ip" type="number" placeholder="12" value="${compRate}" oninput="setComp('rate',this.value)"/></div><div style="flex:1"><p class="lb">Prazo (anos)</p><input class="ip" type="number" placeholder="20" value="${compYears}" oninput="setComp('years',this.value)"/></div></div></div>
     ${P||pmt?`<div class="compound-result"><p class="sl">Resultado após ${n} anos</p>
       <p class="mo" style="font-size:26px;font-weight:800;color:var(--green)">${fB(total)}</p>
       <div class="g2" style="margin-top:10px">
@@ -1047,6 +1047,52 @@ function showIOSHint(){
     setTimeout(()=>d.remove(),8000);
   },2000);
 }
+
+// ═══════ GLOBAL SCOPE EXPORTS (Vite module → window) ═══════
+// Vite compila main.js como ES module — funções ficam em escopo de módulo.
+// Os inline handlers do HTML (onclick, oninput) precisam de acesso global via window.
+
+// Setters para variáveis de módulo usadas em inline handlers
+function setTxFilterMonth(v){ txFilterMonth=v; txPage=0; render(); }
+function setTxFilterCat(v)  { txFilterCat=v;   txPage=0; render(); }
+function setTxFilterType(v) { txFilterType=v;  txPage=0; render(); }
+function clearTxFilters()   { txFilterMonth=''; txFilterCat=''; txFilterType=''; txPage=0; render(); }
+function setTxPage(v)       { txPage=v; render(); }
+function setComp(field, v)  {
+  if(field==='initial') compInitial=v;
+  else if(field==='monthly') compMonthly=v;
+  else if(field==='rate') compRate=v;
+  else if(field==='years') compYears=v;
+  sit('juros');
+}
+
+Object.assign(window, {
+  // Auth
+  doLogin, doLogout, doRegister,
+  // UI
+  toggleTheme, sv, om, cm, render,
+  // Export
+  exportCSV, exportPDF,
+  // Transactions
+  dtx,
+  // Bills
+  tbp, db,
+  // Debts
+  tdp, dd,
+  // Shopping
+  tb, dsi,
+  // Investments
+  di,
+  // Forms
+  sit, stt, stx, sbill, sdebt, sshop, sinv,
+  // Budget
+  setBudget,
+  // AI
+  aa, aia, anv,
+  // Setters para variáveis de módulo
+  setTxFilterMonth, setTxFilterCat, setTxFilterType,
+  clearTxFilters, setTxPage, setComp
+});
 
 // ═══════ INIT ═══════
 async function initApp() {
