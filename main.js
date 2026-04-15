@@ -204,6 +204,9 @@ async function ld(){
   supabaseClient.auth.onAuthStateChange(async (event, session) => {
     if(event==='SIGNED_IN' && session){
       currentUser = session.user;
+      // Resetar botão de login (pode ter ficado "Entrando..." de tentativa anterior)
+      const loginBtn = document.querySelector('#auth-overlay .sb');
+      if(loginBtn){ loginBtn.disabled=false; loginBtn.textContent='Entrar'; }
       document.getElementById('auth-overlay').style.display='none';
       document.getElementById('app').style.display='flex';
       await loadData();
@@ -212,6 +215,11 @@ async function ld(){
     } else if(event==='SIGNED_OUT'){
       currentUser = null;
       ST = {balance:0,transactions:[],bills:[],debts:[],shoppingList:[],investments:[],aiChat:[],invChat:[],budgetLimits:{},streak:0,lastNoSpurfluous:null,balanceHistory:[],theme:'dark'};
+      // Garantir que botões de auth estão no estado correto
+      const loginBtn = document.querySelector('#auth-overlay .sb');
+      const regBtn   = document.querySelector('#auth-overlay .cb');
+      if(loginBtn){ loginBtn.disabled=false; loginBtn.textContent='Entrar'; }
+      if(regBtn)  { regBtn.disabled=false;   regBtn.textContent='Criar Conta Gratuita'; }
       document.getElementById('auth-overlay').style.display='flex';
       document.getElementById('app').style.display='none';
     }
@@ -570,7 +578,7 @@ function rBills(){
         `<div class="dot" style="background:${b.paid?'var(--green)':isUrgent?'var(--red)':'var(--yellow)'}">${cat.emoji}</div>`+
         `<div class="f1"><div class="rb"><span class="td" style="text-decoration:${b.paid?'line-through':'none'}">${es(b.name)}</span><span class="ta mo" style="color:${b.paid?'var(--green)':isUrgent?'var(--red)':'var(--yellow)'}">${fB(b.amount)}</span></div>`+
         `<span class="ti">${cat.label}${b.dueDay?` · dia ${b.dueDay}`:''}${b.paid?' · ✓':isUrgent?' · ⚠️ urgente':''}</span></div>`+
-        `<div class="ac"><button class="ib" onclick="tbp(${b.id})">${b.paid?'↩':'✓'}</button><button class="ib" style="color:var(--red)" onclick="db(${b.id})">✕</button></div></div>`;
+        `<div class="ac"><button class="ib" style="color:var(--muted)" onclick="ebill(${b.id})">✏️</button><button class="ib" onclick="tbp(${b.id})">${b.paid?'↩':'✓'}</button><button class="ib" style="color:var(--red)" onclick="db(${b.id})">✕</button></div></div>`;
     }).join('');
   const hist=ST.bills.filter(b=>b.month!==nm()).slice(0,4).map(b=>{
     const[y,m]=b.month.split('-');
@@ -591,7 +599,7 @@ function rDebts(){
   if(!dO.length&&!dP.length)return `${ban}<div class="card"><div class="rb"><div><p class="sl">O que você deve</p><p class="mo" style="font-size:22px;font-weight:800;color:var(--green)">${fB(0)}</p></div><button class="pb" onclick="om('debt')">+ Nova</button></div></div><div class="es"><span style="font-size:40px">🎉</span><p style="color:var(--muted);margin:8px 0 16px;font-size:13px">Nenhuma dívida! Continue assim.</p></div>`;
   const or=dO.sort((a,b)=>new Date(a.dueDate||'9999')-new Date(b.dueDate||'9999')).map(d=>{
     const isUrgent=d.dueDate&&new Date(d.dueDate)<new Date(Date.now()+7*86400000);
-    return `<div class="lc" style="border-color:${isUrgent?'rgba(248,113,113,.3)':''}"><div class="dot" style="background:var(--red)">💳</div><div class="f1"><div class="rb"><span class="td">${es(d.creditor)}</span><span class="ta mo" style="color:var(--red)">${fB(d.amount)}</span></div><div class="rw">${d.dueDate?`<span class="ti" style="color:${isUrgent?'var(--red)':'var(--muted)'}">Vence: ${new Date(d.dueDate+'T00:00:00').toLocaleDateString('pt-BR')}${isUrgent?' ⚠️':''}</span>`:''}${d.note?`<span class="ti" style="margin-left:4px">· ${es(d.note)}</span>`:''}</div></div><div class="ac"><button class="ib" style="color:var(--green)" onclick="tdp(${d.id})">✓</button><button class="ib" style="color:var(--red)" onclick="dd(${d.id})">✕</button></div></div>`;
+    return `<div class="lc" style="border-color:${isUrgent?'rgba(248,113,113,.3)':''}"><div class="dot" style="background:var(--red)">💳</div><div class="f1"><div class="rb"><span class="td">${es(d.creditor)}</span><span class="ta mo" style="color:var(--red)">${fB(d.amount)}</span></div><div class="rw">${d.dueDate?`<span class="ti" style="color:${isUrgent?'var(--red)':'var(--muted)'}">Vence: ${new Date(d.dueDate+'T00:00:00').toLocaleDateString('pt-BR')}${isUrgent?' ⚠️':''}</span>`:''}${d.note?`<span class="ti" style="margin-left:4px">· ${es(d.note)}</span>`:''}</div></div><div class="ac"><button class="ib" style="color:var(--yellow);font-size:15px" onclick="pdp(${d.id})" title="Pagar parcela">💰</button><button class="ib" style="color:var(--green)" onclick="tdp(${d.id})" title="Quitar tudo">✓</button><button class="ib" style="color:var(--red)" onclick="dd(${d.id})">✕</button></div></div>`;
   }).join('');
   const pr=dP.map(d=>`<div class="lc" style="opacity:.45"><div class="dot" style="background:var(--green)">✓</div><div class="f1"><span class="td" style="text-decoration:line-through">${es(d.creditor)}</span><span class="ti">${fB(d.amount)}</span></div><button class="ib" style="color:var(--red)" onclick="dd(${d.id})">✕</button></div>`).join('');
   return `${ban}<div class="card"><div class="rb"><div><p class="sl">O que você deve</p><p class="mo" style="font-size:22px;font-weight:800;color:${dS>0?'var(--red)':'var(--green)'}">${fB(dS)}</p></div><button class="pb" onclick="om('debt')">+ Nova</button></div></div>${or?`<p class="sl" style="margin-bottom:8px">Em aberto</p>${or}`:''}${pr?`<p class="sl" style="margin-top:16px;margin-bottom:8px">Quitadas ✓</p>${pr}`:''}`;
@@ -844,15 +852,86 @@ function setBudget(catId,val){
   sv_();
 }
 
+// ═══════ EDIT BILL ═══════
+function ebill(id){
+  const b=ST.bills.find(b=>b.id===id);if(!b)return;
+  const mc=document.getElementById('mc');
+  mc.innerHTML=`<p class="mt">✏️ Editar Conta</p>
+    <p class="lb">Nome</p><input class="ip" id="bn" value="${es(b.name)}"/>
+    <p class="lb">Valor (R$)</p><input class="ip" type="number" id="ba" value="${b.amount}" inputmode="decimal"/>
+    <p class="lb">Categoria</p><select class="ip" id="bc">${BLC.map(c=>`<option value="${c.id}"${c.id===b.category?' selected':''}>${c.emoji} ${c.label}</option>`).join('')}</select>
+    <div style="display:flex;gap:10px"><div style="flex:1"><p class="lb">Dia venc.</p><input class="ip" type="number" id="bd" value="${b.dueDay||''}" placeholder="15" inputmode="numeric"/></div><div style="flex:1"><p class="lb">Mês</p><input class="ip" type="month" id="bm" value="${b.month}"/></div></div>
+    <button class="sb" onclick="uebill(${id})">✅ Salvar</button><button class="cb" onclick="cm()">Cancelar</button>`;
+  document.getElementById('mov').style.display='flex';
+}
+function uebill(id){
+  const b=ST.bills.find(b=>b.id===id);if(!b)return;
+  const name=document.getElementById('bn').value.trim();
+  const amount=parseFloat(document.getElementById('ba').value.replace(',','.'));
+  if(!name||!amount)return;
+  b.name=name; b.amount=amount;
+  b.category=document.getElementById('bc').value;
+  b.dueDay=parseInt(document.getElementById('bd').value)||null;
+  b.month=document.getElementById('bm').value;
+  saveRow('bills',{user_id:currentUser?.id,created_id:String(b.id),name,amount,category:b.category,due_day:b.dueDay,month:b.month,paid:b.paid});
+  sv_();cm();render();
+}
+
+// ═══════ PARTIAL DEBT PAYMENT ═══════
+function pdp(id){
+  const d=ST.debts.find(d=>d.id===id);if(!d)return;
+  const mc=document.getElementById('mc');
+  mc.innerHTML=`<p class="mt">💰 Pagar Parcela</p>
+    <div class="tb" style="margin-bottom:14px">Dívida com <strong>${es(d.creditor)}</strong><br><span style="color:var(--red)">Saldo restante: ${fB(d.amount)}</span></div>
+    <p class="lb">Quanto você está pagando agora? (R$)</p>
+    <input class="ip" type="number" id="pval" placeholder="0,00" inputmode="decimal"/>
+    <p class="lb" style="margin-top:8px">Registrar como saída no saldo?</p>
+    <div class="rw" style="margin-bottom:14px"><input type="checkbox" id="pdesc" checked style="margin-right:8px"/><label for="pdesc" style="font-size:12px;color:var(--muted)">Sim — descontar do saldo e criar transação</label></div>
+    <button class="sb" onclick="appdp(${id})">✅ Registrar Pagamento</button><button class="cb" onclick="cm()">Cancelar</button>`;
+  document.getElementById('mov').style.display='flex';
+  setTimeout(()=>{const f=document.getElementById('pval');if(f)f.focus();},100);
+}
+function appdp(id){
+  const d=ST.debts.find(d=>d.id===id);if(!d)return;
+  const val=parseFloat(document.getElementById('pval').value.replace(',','.'));
+  if(!val||val<=0)return;
+  const descSaldo=document.getElementById('pdesc')?.checked!==false;
+  d.amount=Math.max(0, +(d.amount-val).toFixed(2));
+  if(d.amount===0) d.paid=true;
+  if(descSaldo){
+    const newTx={id:Date.now(),type:'expense',amount:val,desc:`Pagamento: ${d.creditor}`,category:'outros',date:new Date().toISOString(),recurring:false,recurringFrom:null};
+    ST.transactions.unshift(newTx);
+    ST.balance=+(ST.balance-val).toFixed(2);
+    recordBalance();
+    saveRow('transactions',{user_id:currentUser?.id,created_id:String(newTx.id),type:'expense',amount:val,description:newTx.desc,category:'outros',date:newTx.date,recurring:false,recurring_from:null});
+  }
+  saveRow('debts',{user_id:currentUser?.id,created_id:String(d.id),creditor:d.creditor,amount:d.amount,due_date:d.dueDate||null,note:d.note||null,paid:d.paid});
+  sv_();cm();render();
+}
+
 // ═══════ ACTIONS ═══════
-function tbp(id){const b=ST.bills.find(b=>b.id===id);if(b){b.paid=!b.paid;sv_();render();}}
+function tbp(id){
+  const b=ST.bills.find(b=>b.id===id);
+  if(b){
+    b.paid=!b.paid;
+    saveRow('bills',{user_id:currentUser?.id,created_id:String(b.id),name:b.name,amount:b.amount,category:b.category,due_day:b.dueDay,month:b.month,paid:b.paid});
+    sv_();render();
+  }
+}
 async function db(id){
   if(window.confirm('Excluir esta conta?')){
     await supabaseClient.from('bills').delete().eq('created_id', String(id));
     ST.bills=ST.bills.filter(b=>b.id!==id);sv_();render();
   }
 }
-function tdp(id){const d=ST.debts.find(d=>d.id===id);if(d){d.paid=!d.paid;sv_();render();}}
+function tdp(id){
+  const d=ST.debts.find(d=>d.id===id);
+  if(d){
+    d.paid=!d.paid;
+    saveRow('debts',{user_id:currentUser?.id,created_id:String(d.id),creditor:d.creditor,amount:d.amount,due_date:d.dueDate||null,note:d.note||null,paid:d.paid});
+    sv_();render();
+  }
+}
 async function dd(id){
   if(window.confirm('Excluir esta dívida?')){
     await supabaseClient.from('debts').delete().eq('created_id', String(id));
@@ -1131,6 +1210,10 @@ Object.assign(window, {
   di,
   // Forms
   sit, stt, stx, sbill, sdebt, sshop, sinv,
+  // Bill edit
+  ebill, uebill,
+  // Debt partial payment
+  pdp, appdp,
   // Budget
   setBudget,
   // AI
