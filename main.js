@@ -106,8 +106,33 @@ function showOfflineBadge(){
 }
 
 
+// Alterna entre telas de login e cadastro
+function switchAuth(view){
+  const loginEl = document.getElementById('auth-login');
+  const regEl   = document.getElementById('auth-register');
+  const errL    = document.getElementById('auth-error');
+  const errR    = document.getElementById('auth-error-reg');
+  if(view === 'register'){
+    // Copia email digitado no login para facilitar
+    const email = document.getElementById('auth-email')?.value;
+    if(email){ const el=document.getElementById('auth-email-reg'); if(el) el.value=email; }
+    if(loginEl) loginEl.style.display = 'none';
+    if(regEl)   regEl.style.display   = 'block';
+    if(errR)    errR.style.display    = 'none';
+    setTimeout(()=>{ const f=document.getElementById('auth-email-reg'); if(f&&!f.value)f.focus(); },50);
+  } else {
+    // Copia email digitado no cadastro de volta
+    const email = document.getElementById('auth-email-reg')?.value;
+    if(email){ const el=document.getElementById('auth-email'); if(el) el.value=email; }
+    if(regEl)   regEl.style.display   = 'none';
+    if(loginEl) loginEl.style.display = 'block';
+    if(errL)    errL.style.display    = 'none';
+    setTimeout(()=>{ const f=document.getElementById('auth-pass'); if(f)f.focus(); },50);
+  }
+}
+
 async function doLogin() {
-  const btn = document.querySelector('#auth-overlay .sb');
+  const btn = document.getElementById('btn-login');
   const errEl = document.getElementById('auth-error');
   btn.disabled = true; btn.textContent = 'Entrando...';
   errEl.style.display = 'none';
@@ -118,6 +143,11 @@ async function doLogin() {
     errEl.style.color = 'var(--red)'; errEl.style.display = 'block';
     btn.disabled = false; btn.textContent = 'Entrar'; return;
   }
+  // Salvar / limpar email lembrado
+  const remember = document.getElementById('auth-remember')?.checked;
+  if(remember) localStorage.setItem('rico_saved_email', email);
+  else localStorage.removeItem('rico_saved_email');
+
   const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
   if (error) {
     errEl.textContent = error.message === 'Invalid login credentials' ? 'E-mail ou senha incorretos.' : error.message;
@@ -128,26 +158,30 @@ async function doLogin() {
 }
 
 async function doRegister() {
-  const btn = document.querySelector('#auth-overlay .cb');
-  const errEl = document.getElementById('auth-error');
+  const btn = document.getElementById('btn-register');
+  const errEl = document.getElementById('auth-error-reg');
   btn.disabled = true; btn.textContent = 'Criando conta...';
   errEl.style.display = 'none';
-  const email = document.getElementById('auth-email').value.trim();
-  const password = document.getElementById('auth-pass').value;
+  const email = document.getElementById('auth-email-reg').value.trim();
+  const password = document.getElementById('auth-pass-reg').value;
   if (!email || !password) {
+    errEl.style.cssText = 'font-size:12px;margin-bottom:10px;display:block;padding:8px 12px;border-radius:8px;background:rgba(248,113,113,.12);border:1px solid rgba(248,113,113,.3);color:var(--red)';
     errEl.textContent = 'Preencha e-mail e senha.';
-    errEl.style.color = 'var(--red)'; errEl.style.display = 'block';
     btn.disabled = false; btn.textContent = 'Criar Conta Gratuita'; return;
   }
   const { error } = await supabaseClient.auth.signUp({ email, password });
   if (error) {
+    errEl.style.cssText = 'font-size:12px;margin-bottom:10px;display:block;padding:8px 12px;border-radius:8px;background:rgba(248,113,113,.12);border:1px solid rgba(248,113,113,.3);color:var(--red)';
     errEl.textContent = error.message;
-    errEl.style.color = 'var(--red)';
   } else {
+    errEl.style.cssText = 'font-size:12px;margin-bottom:10px;display:block;padding:8px 12px;border-radius:8px;background:rgba(74,222,128,.1);border:1px solid rgba(74,222,128,.3);color:var(--green)';
     errEl.textContent = '✅ Conta criada! Verifique seu e-mail para confirmar e depois entre.';
-    errEl.style.color = 'var(--green)';
+    // Volta para login após 2,5s e pré-preenche o email
+    setTimeout(()=>{
+      const el=document.getElementById('auth-email'); if(el) el.value=email;
+      switchAuth('login');
+    }, 2500);
   }
-  errEl.style.display = 'block';
   btn.disabled = false; btn.textContent = 'Criar Conta Gratuita';
 }
 
@@ -228,6 +262,17 @@ async function ld(){
   }
 
   // ════════════════════════════════════════════════════════════
+  // PASSO 1b — Pré-preencher email lembrado na tela de login
+  // ════════════════════════════════════════════════════════════
+  const savedEmail = localStorage.getItem('rico_saved_email');
+  if(savedEmail){
+    const emailEl = document.getElementById('auth-email');
+    const remEl   = document.getElementById('auth-remember');
+    if(emailEl) emailEl.value = savedEmail;
+    if(remEl)   remEl.checked = true;
+  }
+
+  // ════════════════════════════════════════════════════════════
   // PASSO 2 — Se há cache, mostrar o app IMEDIATAMENTE
   //           (antes de qualquer chamada de rede)
   // ════════════════════════════════════════════════════════════
@@ -244,8 +289,8 @@ async function ld(){
   let _appStarted = false;
 
   function _resetAuthButtons(){
-    const lb = document.querySelector('#auth-overlay .sb');
-    const rb = document.querySelector('#auth-overlay .cb');
+    const lb = document.getElementById('btn-login');
+    const rb = document.getElementById('btn-register');
     const ob = _getLogoutBtn();
     if(lb){ lb.disabled=false; lb.textContent='Entrar'; }
     if(rb){ rb.disabled=false; rb.textContent='Criar Conta Gratuita'; }
@@ -1394,7 +1439,9 @@ Object.assign(window, {
   // Setters para variáveis de módulo
   setTxFilterMonth, setTxFilterCat, setTxFilterType,
   clearTxFilters, setTxPage, setTxSearch, setComp,
-  copyPrevBills
+  copyPrevBills,
+  // Auth
+  switchAuth
 });
 
 // ═══════ INIT ═══════
@@ -1412,8 +1459,12 @@ if(urlParams.get('action')==='tx'){setTimeout(()=>om('tx'),500);}
 // ═══════ AUTH BUTTON LISTENERS ═══════
 document.getElementById('btn-login').addEventListener('click', doLogin);
 document.getElementById('btn-register').addEventListener('click', doRegister);
+// Login — Enter em qualquer campo
 document.getElementById('auth-pass').addEventListener('keydown', function(e){if(e.key==='Enter')doLogin();});
 document.getElementById('auth-email').addEventListener('keydown', function(e){if(e.key==='Enter')doLogin();});
+// Cadastro — Enter em qualquer campo
+document.getElementById('auth-pass-reg').addEventListener('keydown', function(e){if(e.key==='Enter')doRegister();});
+document.getElementById('auth-email-reg').addEventListener('keydown', function(e){if(e.key==='Enter')doRegister();});
 
 // Flush pending sync before page unload (evita perda de dados na recarga)
 window.addEventListener('beforeunload', () => {

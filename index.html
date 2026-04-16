@@ -17,15 +17,48 @@
 </head>
 <body>
 <div id="auth-overlay" class="ov" style="z-index: 200; align-items: center; justify-content: center; background: var(--bg2);">
-  <div class="card" style="width: 90%; max-width: 360px;">
-    <h2 style="text-align:center; margin-bottom: 20px; color: var(--green);">💎 RICO</h2>
-    <p class="sl">Login / Cadastro</p>
-    <div id="auth-error" style="color:red; font-size:12px; margin-bottom: 10px; display:none;"></div>
-    <input type="email" id="auth-email" class="ip" placeholder="Email" />
-    <input type="password" id="auth-pass" class="ip" placeholder="Senha" />
+
+  <!-- ── TELA DE LOGIN ── -->
+  <div id="auth-login" class="card" style="width:90%;max-width:360px;">
+    <div style="text-align:center;margin-bottom:22px">
+      <div style="font-size:40px;line-height:1">💎</div>
+      <h2 style="color:var(--green);margin:8px 0 2px;font-size:24px;font-weight:900;letter-spacing:-.5px">RICO</h2>
+      <p style="font-size:10px;color:var(--muted2);letter-spacing:1px;text-transform:uppercase">Controle Financeiro</p>
+    </div>
+    <p class="sl" style="text-align:center;margin-bottom:18px;font-size:15px">Entrar na conta</p>
+    <div id="auth-error" style="font-size:12px;margin-bottom:10px;display:none;padding:8px 12px;border-radius:8px;background:rgba(248,113,113,.12);border:1px solid rgba(248,113,113,.3)"></div>
+    <input type="email" id="auth-email" class="ip" placeholder="Email" autocomplete="email"/>
+    <input type="password" id="auth-pass" class="ip" placeholder="Senha" autocomplete="current-password"/>
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:18px">
+      <input type="checkbox" id="auth-remember" style="width:16px;height:16px;accent-color:var(--green);cursor:pointer;flex-shrink:0"/>
+      <label for="auth-remember" style="font-size:12px;color:var(--muted);cursor:pointer;user-select:none">Lembrar meu acesso</label>
+    </div>
     <button class="sb" id="btn-login">Entrar</button>
-    <button class="cb" id="btn-register">Criar Conta Gratuita</button>
+    <p style="text-align:center;font-size:12px;color:var(--muted2);margin-top:16px">
+      Não tem conta?
+      <a href="#" onclick="switchAuth('register');return false" style="color:var(--green);text-decoration:none;font-weight:700">Criar conta gratuita →</a>
+    </p>
   </div>
+
+  <!-- ── TELA DE CADASTRO ── -->
+  <div id="auth-register" class="card" style="width:90%;max-width:360px;display:none;">
+    <div style="text-align:center;margin-bottom:22px">
+      <div style="font-size:40px;line-height:1">💎</div>
+      <h2 style="color:var(--green);margin:8px 0 2px;font-size:24px;font-weight:900;letter-spacing:-.5px">RICO</h2>
+      <p style="font-size:10px;color:var(--muted2);letter-spacing:1px;text-transform:uppercase">Controle Financeiro com IA</p>
+    </div>
+    <p class="sl" style="text-align:center;margin-bottom:4px;font-size:15px">Criar conta gratuita</p>
+    <p style="text-align:center;font-size:11px;color:var(--muted2);margin-bottom:18px">Gerencie seu dinheiro com inteligência artificial</p>
+    <div id="auth-error-reg" style="font-size:12px;margin-bottom:10px;display:none;padding:8px 12px;border-radius:8px"></div>
+    <input type="email" id="auth-email-reg" class="ip" placeholder="Email" autocomplete="email"/>
+    <input type="password" id="auth-pass-reg" class="ip" placeholder="Senha (mínimo 6 caracteres)" autocomplete="new-password"/>
+    <button class="sb" id="btn-register">Criar Conta Gratuita</button>
+    <p style="text-align:center;font-size:12px;color:var(--muted2);margin-top:16px">
+      Já tem conta?
+      <a href="#" onclick="switchAuth('login');return false" style="color:var(--green);text-decoration:none;font-weight:700">← Entrar</a>
+    </p>
+  </div>
+
 </div>
 <div id="app" style="display:none">
 <div id="header">
