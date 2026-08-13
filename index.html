@@ -13,7 +13,7 @@
 <link rel="manifest" id="mph"/>
 <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'%3E%3Crect width='180' height='180' rx='40' fill='%2306060f'/%3E%3Ctext y='125' x='90' text-anchor='middle' font-size='100'%3E%F0%9F%92%8E%3C/text%3E%3C/svg%3E"/>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script type="module" crossorigin src="./assets/index-CKzIPwkD.js"></script>
+  <script type="module" crossorigin src="./assets/index-By1IF3GO.js"></script>
   <link rel="stylesheet" crossorigin href="./assets/index-DvU_vKmC.css">
 </head>
 <body>
@@ -25,7 +25,7 @@
       <div style="font-size:40px;line-height:1">💎</div>
       <h2 style="color:var(--green);margin:8px 0 2px;font-size:24px;font-weight:900;letter-spacing:-.5px">RICO</h2>
       <p style="font-size:10px;color:var(--muted2);letter-spacing:1px;text-transform:uppercase">Controle Financeiro</p>
-      <div style="font-size:9px;color:var(--muted);margin-top:2px;font-family:'DM Mono',monospace;">v1.3.0</div>
+      <div style="font-size:9px;color:var(--muted);margin-top:2px;font-family:'DM Mono',monospace;">v1.5.0</div>
     </div>
     <p class="sl" style="text-align:center;margin-bottom:18px;font-size:15px">Entrar na conta</p>
     <div id="auth-error" style="font-size:12px;margin-bottom:10px;display:none;padding:8px 12px;border-radius:8px;background:rgba(248,113,113,.12);border:1px solid rgba(248,113,113,.3)"></div>
@@ -48,7 +48,7 @@
       <div style="font-size:40px;line-height:1">💎</div>
       <h2 style="color:var(--green);margin:8px 0 2px;font-size:24px;font-weight:900;letter-spacing:-.5px">RICO</h2>
       <p style="font-size:10px;color:var(--muted2);letter-spacing:1px;text-transform:uppercase">Controle Financeiro com IA</p>
-      <div style="font-size:9px;color:var(--muted);margin-top:2px;font-family:'DM Mono',monospace;">v1.3.0</div>
+      <div style="font-size:9px;color:var(--muted);margin-top:2px;font-family:'DM Mono',monospace;">v1.5.0</div>
     </div>
     <p class="sl" style="text-align:center;margin-bottom:4px;font-size:15px">Criar conta gratuita</p>
     <p style="text-align:center;font-size:11px;color:var(--muted2);margin-bottom:18px">Gerencie seu dinheiro com inteligência artificial</p>
@@ -73,10 +73,11 @@
     </div>
   </div>
   <div class="rw" style="gap:10px">
-    <button id="btn-logout" class="ib" onclick="doLogout()" style="color:var(--red); padding:3px 8px; font-weight:bold" title="Sair">Sair</button>
+    <button class="ib" onclick="om('profile')" style="color:var(--muted);font-size:15px;padding:3px" title="Perfil e Configurações">⚙️</button>
+    <button id="btn-logout" class="ib" onclick="doLogout()" style="color:var(--red); padding:3px 6px; font-weight:bold" title="Sair">Sair</button>
     <button class="theme-btn" id="theme-toggle" onclick="toggleTheme()" title="Tema"><span class="theme-knob"></span></button>
     <div style="display:flex;flex-direction:column;align-items:flex-end">
-      <span id="huser" style="font-size:9px;color:var(--muted2);max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span>
+      <span id="huser" onclick="om('profile')" style="font-size:9px;color:var(--muted2);max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer" title="Configurações"></span>
       <span class="ti" style="font-size:9px;text-transform:uppercase;letter-spacing:1px">saldo</span>
       <span id="hb" class="mo" style="font-size:16px;font-weight:700;color:var(--green)">R$ 0,00</span>
     </div>
