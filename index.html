@@ -3,61 +3,66 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"/>
-<meta name="theme-color" content="#06060f"/>
+<meta name="theme-color" content="#000000"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
 <meta name="apple-mobile-web-app-title" content="RICO"/>
 <meta name="mobile-web-app-capable" content="yes"/>
 <meta name="description" content="Controle financeiro inteligente com IA — gerencie seu dinheiro e conquiste seus objetivos."/>
 <title>RICO — Controle Financeiro</title>
-<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Cdefs%3E%3ClinearGradient id='bg' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0%25' stop-color='%230b132b'/%3E%3Cstop offset='100%25' stop-color='%2306060f'/%3E%3C/linearGradient%3E%3ClinearGradient id='gem' x1='0' y1='0' x2='0' y2='1'%3E%3Cstop offset='0%25' stop-color='%236ee7b7'/%3E%3Cstop offset='50%25' stop-color='%2310b981'/%3E%3Cstop offset='100%25' stop-color='%23047857'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='512' height='512' rx='112' fill='url(%23bg)'/%3E%3Crect x='16' y='16' width='480' height='480' rx='96' fill='none' stroke='%2310b981' stroke-opacity='0.3' stroke-width='8'/%3E%3Cg%3E%3Cpolygon points='256,96 368,192 256,416 144,192' fill='url(%23gem)'/%3E%3Cpolygon points='256,96 368,192 256,224' fill='%23a7f3d0' opacity='0.6'/%3E%3Cpolygon points='256,96 144,192 256,224' fill='%2334d399' opacity='0.8'/%3E%3Cpolygon points='144,192 256,224 256,416' fill='%23059669' opacity='0.9'/%3E%3Cpolygon points='368,192 256,224 256,416' fill='%23047857' opacity='0.95'/%3E%3C/g%3E%3C/svg%3E"/>
-<link rel="manifest" id="mph"/>
-<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Cdefs%3E%3ClinearGradient id='bg' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0%25' stop-color='%230b132b'/%3E%3Cstop offset='100%25' stop-color='%2306060f'/%3E%3C/linearGradient%3E%3ClinearGradient id='gem' x1='0' y1='0' x2='0' y2='1'%3E%3Cstop offset='0%25' stop-color='%236ee7b7'/%3E%3Cstop offset='50%25' stop-color='%2310b981'/%3E%3Cstop offset='100%25' stop-color='%23047857'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='512' height='512' rx='112' fill='url(%23bg)'/%3E%3Crect x='16' y='16' width='480' height='480' rx='96' fill='none' stroke='%2310b981' stroke-opacity='0.3' stroke-width='8'/%3E%3Cg%3E%3Cpolygon points='256,96 368,192 256,416 144,192' fill='url(%23gem)'/%3E%3Cpolygon points='256,96 368,192 256,224' fill='%23a7f3d0' opacity='0.6'/%3E%3Cpolygon points='256,96 144,192 256,224' fill='%2334d399' opacity='0.8'/%3E%3Cpolygon points='144,192 256,224 256,416' fill='%23059669' opacity='0.9'/%3E%3Cpolygon points='368,192 256,224 256,416' fill='%23047857' opacity='0.95'/%3E%3C/g%3E%3C/svg%3E"/>
+
+<!-- Static PWA Icons & Manifest -->
+<link rel="icon" type="image/png" sizes="32x32" href="./icons/favicon.png"/>
+<link rel="icon" type="image/png" sizes="192x192" href="./icons/icon-192.png"/>
+<link rel="apple-touch-icon" sizes="180x180" href="./icons/apple-touch-icon.png"/>
+<link rel="manifest" id="mph" href="./manifest.json"/>
+
+<!-- Stylesheet & Supabase JS -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script type="module" crossorigin src="./assets/index-W70xIEst.js"></script>
-  <link rel="stylesheet" crossorigin href="./assets/index-DvU_vKmC.css">
+  <script type="module" crossorigin src="./assets/index-DKFRyYCE.js"></script>
+  <link rel="stylesheet" crossorigin href="./assets/index-BWpi7mo9.css">
 </head>
 <body>
-<div id="auth-overlay" class="ov" style="z-index: 200; align-items: center; justify-content: center; background: var(--bg2);">
+<div id="auth-overlay" class="ov" style="z-index: 200; align-items: center; justify-content: center; background: var(--bg);">
 
   <!-- ── TELA DE LOGIN ── -->
-  <div id="auth-login" class="card" style="width:90%;max-width:360px;">
-    <div style="text-align:center;margin-bottom:22px">
-      <div style="font-size:40px;line-height:1">💎</div>
-      <h2 style="color:var(--green);margin:8px 0 2px;font-size:24px;font-weight:900;letter-spacing:-.5px">RICO</h2>
-      <p style="font-size:10px;color:var(--muted2);letter-spacing:1px;text-transform:uppercase">Controle Financeiro</p>
-      <div style="font-size:9px;color:var(--muted);margin-top:2px;font-family:'DM Mono',monospace;">v1.5.0</div>
+  <div id="auth-login" class="card" style="width:90%;max-width:380px;">
+    <div style="text-align:center;margin-bottom:24px">
+      <div style="width:56px;height:56px;margin:0 auto;border-radius:16px;background:linear-gradient(135deg,var(--green),var(--green2));display:flex;align-items:center;justify-content:center;font-size:28px;box-shadow:0 8px 24px rgba(16,185,129,.3)">💎</div>
+      <h2 style="color:var(--text);margin:12px 0 2px;font-size:26px;font-weight:900;letter-spacing:-.5px">RICO</h2>
+      <p style="font-size:11px;color:var(--muted2);letter-spacing:1px;text-transform:uppercase;font-weight:600">Controle Financeiro • DriverFlow</p>
+      <div style="font-size:10px;color:var(--muted);margin-top:4px;">v1.5.0</div>
     </div>
-    <p class="sl" style="text-align:center;margin-bottom:18px;font-size:15px">Entrar na conta</p>
-    <div id="auth-error" style="font-size:12px;margin-bottom:10px;display:none;padding:8px 12px;border-radius:8px;background:rgba(248,113,113,.12);border:1px solid rgba(248,113,113,.3)"></div>
+    <p class="sl" style="text-align:center;margin-bottom:18px;font-size:13px;letter-spacing:.05em">Entrar na sua conta</p>
+    <div id="auth-error" style="font-size:12px;margin-bottom:12px;display:none;padding:10px 14px;border-radius:12px;background:rgba(248,113,113,.12);border:1px solid rgba(248,113,113,.3);color:var(--red)"></div>
     <input type="email" id="auth-email" class="ip" placeholder="Email" autocomplete="email"/>
     <input type="password" id="auth-pass" class="ip" placeholder="Senha" autocomplete="current-password"/>
-    <div style="display:flex;align-items:center;gap:8px;margin-bottom:18px">
-      <input type="checkbox" id="auth-remember" style="width:16px;height:16px;accent-color:var(--green);cursor:pointer;flex-shrink:0"/>
-      <label for="auth-remember" style="font-size:12px;color:var(--muted);cursor:pointer;user-select:none">Lembrar meu acesso</label>
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:20px">
+      <input type="checkbox" id="auth-remember" style="width:18px;height:18px;accent-color:var(--green);cursor:pointer;flex-shrink:0"/>
+      <label for="auth-remember" style="font-size:13px;color:var(--muted);cursor:pointer;user-select:none">Lembrar meu acesso</label>
     </div>
     <button class="sb" id="btn-login">Entrar</button>
-    <p style="text-align:center;font-size:12px;color:var(--muted2);margin-top:16px">
+    <p style="text-align:center;font-size:13px;color:var(--muted2);margin-top:20px">
       Não tem conta?
       <a href="#" onclick="switchAuth('register');return false" style="color:var(--green);text-decoration:none;font-weight:700">Criar conta gratuita →</a>
     </p>
   </div>
 
   <!-- ── TELA DE CADASTRO ── -->
-  <div id="auth-register" class="card" style="width:90%;max-width:360px;display:none;">
-    <div style="text-align:center;margin-bottom:22px">
-      <div style="font-size:40px;line-height:1">💎</div>
-      <h2 style="color:var(--green);margin:8px 0 2px;font-size:24px;font-weight:900;letter-spacing:-.5px">RICO</h2>
-      <p style="font-size:10px;color:var(--muted2);letter-spacing:1px;text-transform:uppercase">Controle Financeiro com IA</p>
-      <div style="font-size:9px;color:var(--muted);margin-top:2px;font-family:'DM Mono',monospace;">v1.5.0</div>
+  <div id="auth-register" class="card" style="width:90%;max-width:380px;display:none;">
+    <div style="text-align:center;margin-bottom:24px">
+      <div style="width:56px;height:56px;margin:0 auto;border-radius:16px;background:linear-gradient(135deg,var(--green),var(--green2));display:flex;align-items:center;justify-content:center;font-size:28px;box-shadow:0 8px 24px rgba(16,185,129,.3)">💎</div>
+      <h2 style="color:var(--text);margin:12px 0 2px;font-size:26px;font-weight:900;letter-spacing:-.5px">RICO</h2>
+      <p style="font-size:11px;color:var(--muted2);letter-spacing:1px;text-transform:uppercase;font-weight:600">Controle Financeiro com IA</p>
+      <div style="font-size:10px;color:var(--muted);margin-top:4px;">v1.5.0</div>
     </div>
-    <p class="sl" style="text-align:center;margin-bottom:4px;font-size:15px">Criar conta gratuita</p>
-    <p style="text-align:center;font-size:11px;color:var(--muted2);margin-bottom:18px">Gerencie seu dinheiro com inteligência artificial</p>
-    <div id="auth-error-reg" style="font-size:12px;margin-bottom:10px;display:none;padding:8px 12px;border-radius:8px"></div>
+    <p class="sl" style="text-align:center;margin-bottom:6px;font-size:13px;letter-spacing:.05em">Criar conta gratuita</p>
+    <p style="text-align:center;font-size:12px;color:var(--muted2);margin-bottom:20px">Gerencie seu dinheiro com inteligência artificial</p>
+    <div id="auth-error-reg" style="font-size:12px;margin-bottom:12px;display:none;padding:10px 14px;border-radius:12px;background:rgba(248,113,113,.12);border:1px solid rgba(248,113,113,.3);color:var(--red)"></div>
     <input type="email" id="auth-email-reg" class="ip" placeholder="Email" autocomplete="email"/>
     <input type="password" id="auth-pass-reg" class="ip" placeholder="Senha (mínimo 6 caracteres)" autocomplete="new-password"/>
     <button class="sb" id="btn-register">Criar Conta Gratuita</button>
-    <p style="text-align:center;font-size:12px;color:var(--muted2);margin-top:16px">
+    <p style="text-align:center;font-size:13px;color:var(--muted2);margin-top:20px">
       Já tem conta?
       <a href="#" onclick="switchAuth('login');return false" style="color:var(--green);text-decoration:none;font-weight:700">← Entrar</a>
     </p>
@@ -66,34 +71,39 @@
 </div>
 <div id="app" style="display:none">
 <div id="header">
-  <div class="rw" style="gap:8px">
-    <span style="font-size:20px">💎</span>
+  <div class="rw" style="gap:10px">
+    <div class="avatar-icon" onclick="om('profile')" title="Perfil e Configurações">
+      <span style="font-size:16px">💎</span>
+    </div>
     <div>
-      <b style="font-size:18px;font-weight:800;color:var(--green);letter-spacing:-.5px;display:block">RICO</b>
-      <span style="font-size:8px;color:var(--muted2);letter-spacing:.5px">Controle Financeiro</span>
+      <div class="rw" style="gap:6px">
+        <b style="font-size:18px;font-weight:800;color:var(--text);letter-spacing:-.5px;display:block">DriverFlow</b>
+        <span class="sync-status-badge"><span class="sync-dot"></span> Sincronizado</span>
+      </div>
+      <span id="huser" onclick="om('profile')" style="font-size:11px;color:var(--muted2);cursor:pointer" title="Configurações"></span>
     </div>
   </div>
-  <div class="rw" style="gap:10px">
-    <button class="ib" onclick="om('profile')" style="color:var(--muted);font-size:15px;padding:3px" title="Perfil e Configurações">⚙️</button>
-    <button id="btn-logout" class="ib" onclick="doLogout()" style="color:var(--red); padding:3px 6px; font-weight:bold" title="Sair">Sair</button>
+  <div class="rw" style="gap:8px">
     <button class="theme-btn" id="theme-toggle" onclick="toggleTheme()" title="Tema"><span class="theme-knob"></span></button>
-    <div style="display:flex;flex-direction:column;align-items:flex-end">
-      <span id="huser" onclick="om('profile')" style="font-size:9px;color:var(--muted2);max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer" title="Configurações"></span>
-      <span class="ti" style="font-size:9px;text-transform:uppercase;letter-spacing:1px">saldo</span>
-      <span id="hb" class="mo" style="font-size:16px;font-weight:700;color:var(--green)">R$ 0,00</span>
-    </div>
+    <button class="ib" onclick="om('profile')" style="color:var(--text);font-size:15px;padding:6px;border-radius:10px" title="Perfil e Configurações">⚙️</button>
+    <button id="btn-logout" class="ib" onclick="doLogout()" style="color:var(--red); padding:6px 10px; font-weight:700; border-radius:10px" title="Sair">Sair</button>
   </div>
 </div>
+
 <div id="main"></div>
+
 <nav id="nav">
-  <button class="nb act" data-v="dashboard" onclick="sv('dashboard')"><span style="font-size:15px">📊</span><span class="nl">Início</span></button>
-  <button class="nb" data-v="bills" onclick="sv('bills')"><span style="font-size:15px;position:relative">📋<span id="bills-dot" class="notif-dot" style="display:none"></span></span><span class="nl">Contas</span></button>
-  <button class="nb" data-v="debts" onclick="sv('debts')"><span style="font-size:15px">💳</span><span class="nl">Dívidas</span></button>
-  <button class="nb" data-v="shopping" onclick="sv('shopping')"><span style="font-size:15px">🛒</span><span class="nl">Compras</span></button>
-  <button class="nb" data-v="invest" onclick="sv('invest')"><span style="font-size:15px">📈</span><span class="nl">Investir</span></button>
-  <button class="nb" data-v="ai" onclick="sv('ai')"><span style="font-size:15px">🤖</span><span class="nl">IA</span></button>
+  <button class="nb act" data-v="dashboard" onclick="sv('dashboard')"><span class="ni">📊</span><span class="nl">Dashboard</span></button>
+  <button class="nb" data-v="history" onclick="sv('history')"><span class="ni">🕒</span><span class="nl">Histórico</span></button>
+  <button class="nb" data-v="bills" onclick="sv('bills')"><span class="ni">📋<span id="bills-dot" class="notif-dot" style="display:none"></span></span><span class="nl">Contas</span></button>
+  <button class="nb" data-v="debts" onclick="sv('debts')"><span class="ni">💳</span><span class="nl">Dívidas</span></button>
+  <button class="nb" data-v="shopping" onclick="sv('shopping')"><span class="ni">🛒</span><span class="nl">Compras</span></button>
+  <button class="nb" data-v="invest" onclick="sv('invest')"><span class="ni">📈</span><span class="nl">Investir</span></button>
+  <button class="nb" data-v="ai" onclick="sv('ai')"><span class="ni">🤖</span><span class="nl">IA</span></button>
 </nav>
+
 <button id="fab" onclick="om('tx')">＋</button>
+
 <div id="mov" class="ov" style="display:none" onclick="cm()">
   <div class="sh" onclick="event.stopPropagation()"><div id="mc"></div></div>
 </div>
