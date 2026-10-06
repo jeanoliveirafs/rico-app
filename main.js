@@ -106,6 +106,26 @@ function showOfflineBadge(){
 }
 
 
+// Abre o acesso a partir da página pública sem perder a intenção do visitante.
+function openAuth(view='register'){
+  const sales=document.getElementById('sales-page');
+  const overlay=document.getElementById('auth-overlay');
+  if(sales) sales.style.display='none';
+  if(overlay) overlay.style.display='flex';
+  switchAuth(view);
+  setTimeout(()=>{
+    const field=document.getElementById(view==='register'?'auth-email-reg':'auth-email');
+    if(field) field.focus();
+  },60);
+}
+
+function showSalesPage(){
+  const sales=document.getElementById('sales-page');
+  const overlay=document.getElementById('auth-overlay');
+  if(sales) sales.style.display='block';
+  if(overlay) overlay.style.display='none';
+}
+
 // Alterna entre telas de login e cadastro
 function switchAuth(view){
   const loginEl = document.getElementById('auth-login');
@@ -277,6 +297,7 @@ async function ld(){
   //           (antes de qualquer chamada de rede)
   // ════════════════════════════════════════════════════════════
   if(cachedUid){
+    document.getElementById('sales-page').style.display   = 'none';
     document.getElementById('auth-overlay').style.display = 'none';
     document.getElementById('app').style.display          = 'flex';
     applyTheme();
@@ -305,6 +326,7 @@ async function ld(){
     _resetAuthButtons(); // garante que nenhum botão fique preso
 
     document.getElementById('auth-overlay').style.display = 'none';
+    document.getElementById('sales-page').style.display   = 'none';
     document.getElementById('app').style.display          = 'flex';
 
     // Carrega dados frescos do Supabase (sobrescreve o cache)
@@ -324,7 +346,7 @@ async function ld(){
           balanceHistory:[],theme:'dark'};
     try{ localStorage.removeItem(KEY); }catch(e){}
     _resetAuthButtons();
-    document.getElementById('auth-overlay').style.display = 'flex';
+    showSalesPage();
     document.getElementById('app').style.display          = 'none';
   }
 
@@ -354,7 +376,7 @@ async function ld(){
       // Tinha cache mas sessão expirou — limpa cache e força login
       try{ localStorage.removeItem(KEY); }catch(e){}
     }
-    document.getElementById('auth-overlay').style.display = 'flex';
+    showSalesPage();
     document.getElementById('app').style.display          = 'none';
   }
   return false;
@@ -1411,7 +1433,7 @@ function setComp(field, v)  {
 
 Object.assign(window, {
   // Auth
-  doLogin, doLogout, doRegister,
+  doLogin, doLogout, doRegister, openAuth,
   // UI
   toggleTheme, sv, om, cm, render,
   // Export

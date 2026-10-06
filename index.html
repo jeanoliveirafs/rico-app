@@ -8,8 +8,15 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
 <meta name="apple-mobile-web-app-title" content="RICO"/>
 <meta name="mobile-web-app-capable" content="yes"/>
-<meta name="description" content="Controle financeiro inteligente com IA — gerencie seu dinheiro e conquiste seus objetivos."/>
-<title>RICO — Controle Financeiro</title>
+<meta name="description" content="Entenda seu dinheiro antes que ele desapareça. O Rico organiza contas, dívidas, metas e investimentos e usa IA para mostrar o próximo passo."/>
+<meta property="og:title" content="Rico — seu copiloto financeiro com IA"/>
+<meta property="og:description" content="Organize sua vida financeira, descubra o que mudou e receba próximos passos simples para cuidar melhor do seu dinheiro."/>
+<meta property="og:type" content="website"/>
+<meta property="og:url" content="https://jeanoliveirafs.github.io/rico-app/"/>
+<meta name="twitter:card" content="summary"/>
+<meta name="twitter:title" content="Rico — seu copiloto financeiro com IA"/>
+<meta name="twitter:description" content="Contas, dívidas, metas e investimentos em um só lugar, com IA que explica seus números."/>
+<title>Rico — Seu copiloto financeiro com IA</title>
 
 <!-- Static PWA Icons & Manifest -->
 <link rel="icon" type="image/png" sizes="32x32" href="./icons/favicon.png"/>
@@ -19,11 +26,61 @@
 
 <!-- Stylesheet & Supabase JS -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script type="module" crossorigin src="./assets/index-BZP6Zu0D.js"></script>
-  <link rel="stylesheet" crossorigin href="./assets/index-BWpi7mo9.css">
+<link rel="stylesheet" href="./style.css">
+<script type="module" src="./main.js"></script>
 </head>
 <body>
-<div id="auth-overlay" class="ov" style="z-index: 200; align-items: center; justify-content: center; background: var(--bg);">
+<main id="sales-page" class="sales-page">
+  <nav class="sales-nav" aria-label="Navegação principal">
+    <a class="sales-brand" href="#top" aria-label="Rico início"><span class="sales-brand-mark">◆</span> RICO</a>
+    <div class="sales-nav-links">
+      <a href="#como-funciona">Como funciona</a>
+      <a href="#recursos">Recursos</a>
+      <a href="#seguranca">Segurança</a>
+      <button class="sales-login-link" type="button" onclick="openAuth('login')">Entrar</button>
+      <button class="sales-nav-cta" type="button" onclick="openAuth('register')">Começar grátis</button>
+    </div>
+  </nav>
+
+  <section id="top" class="sales-hero">
+    <div class="sales-hero-copy">
+      <p class="sales-eyebrow"><span></span> Seu dinheiro, explicado de forma simples</p>
+      <h1>Entenda seu dinheiro <em>antes</em> que ele desapareça.</h1>
+      <p class="sales-lead">O Rico organiza suas contas, dívidas, compras, metas e investimentos e usa IA para mostrar o que está acontecendo e qual é o próximo passo.</p>
+      <div class="sales-actions">
+        <button class="sales-primary" type="button" onclick="openAuth('register')">Começar grátis <span>→</span></button>
+        <a class="sales-secondary" href="#como-funciona">Ver como funciona <span>↓</span></a>
+      </div>
+      <p class="sales-reassurance"><span>✓</span> Cadastro gratuito&nbsp;&nbsp; <span>✓</span> Sem planilha&nbsp;&nbsp; <span>✓</span> Controle do usuário</p>
+    </div>
+    <div class="sales-hero-visual" aria-label="Prévia do painel financeiro do Rico">
+      <div class="sales-orbit sales-orbit-one"></div><div class="sales-orbit sales-orbit-two"></div>
+      <div class="sales-dashboard-card">
+        <div class="sales-card-top"><span class="sales-mini-brand">◆ RICO</span><span class="sales-sync"><i></i> Sincronizado</span></div>
+        <p class="sales-card-greeting">Bom dia, Jean <span>✦</span></p>
+        <p class="sales-card-label">SALDO DISPONÍVEL</p><strong class="sales-balance">R$ 4.280,00</strong>
+        <div class="sales-chart"><span style="height:32%"></span><span style="height:46%"></span><span style="height:38%"></span><span style="height:60%"></span><span style="height:51%"></span><span style="height:78%"></span><span style="height:68%"></span><span style="height:91%"></span></div>
+        <div class="sales-metrics"><div><small>ENTRADAS</small><b class="positive">R$ 6.500</b></div><div><small>SAÍDAS</small><b>R$ 2.220</b></div></div>
+        <div class="sales-ai-card"><span>✦</span><div><small>RICO IA</small><p>Seus gastos com delivery subiram 18%. Quer criar um limite para este mês?</p></div><b>→</b></div>
+      </div>
+      <div class="sales-float sales-float-goal"><span>🎯</span><div><small>META FINANCEIRA</small><b>Reserva de emergência</b><strong>68% concluída</strong></div></div>
+      <div class="sales-float sales-float-alert"><span>⚡</span><div><small>ATENÇÃO</small><b>1 conta vence em 3 dias</b></div></div>
+    </div>
+  </section>
+
+  <section id="como-funciona" class="sales-section sales-how">
+    <div class="sales-section-heading"><p class="sales-eyebrow"><span></span> Clareza para agir</p><h2>Do caos financeiro a um próximo passo claro.</h2><p>Você não precisa de mais uma planilha. Precisa entender seus números e saber o que fazer com eles.</p></div>
+    <div class="sales-steps"><article><div class="sales-step-number">01</div><span class="sales-step-icon">◎</span><h3>Organize</h3><p>Tenha contas, dívidas, compras, metas e investimentos em uma visão simples.</p></article><article><div class="sales-step-number">02</div><span class="sales-step-icon">✦</span><h3>Entenda</h3><p>Pergunte à IA o que mudou, onde você está gastando e o que merece atenção.</p></article><article><div class="sales-step-number">03</div><span class="sales-step-icon">↗</span><h3>Avance</h3><p>Transforme insights em limites, metas e decisões melhores para o próximo mês.</p></article></div>
+  </section>
+
+  <section id="recursos" class="sales-section sales-features"><div class="sales-section-heading"><p class="sales-eyebrow"><span></span> Tudo em um só lugar</p><h2>Seu dinheiro tem várias partes. O Rico conecta todas elas.</h2></div><div class="sales-feature-grid"><article><span>▦</span><h3>Dashboard sem ruído</h3><p>Saldo, entradas, saídas, patrimônio e fluxo do mês em uma leitura rápida.</p></article><article><span>◒</span><h3>Dívidas sob controle</h3><p>Priorize compromissos e enxergue o custo que pode estar travando seus planos.</p></article><article><span>⌁</span><h3>Metas que avançam</h3><p>Crie objetivos e acompanhe o progresso sem perder de vista a realidade do mês.</p></article><article><span>✦</span><h3>IA que explica</h3><p>Receba análises e próximos passos em linguagem natural, baseados nos seus dados.</p></article></div></section>
+
+  <section id="seguranca" class="sales-trust"><div><p class="sales-eyebrow"><span></span> Feito para você ter controle</p><h2>Clareza também é saber como seus dados são usados.</h2></div><div class="sales-trust-points"><p><b>✓</b><span><strong>Você decide</strong> A IA sugere. Você revisa e confirma qualquer ação.</span></p><p><b>✓</b><span><strong>Privacidade em primeiro lugar</strong> A página de segurança explica permissões, armazenamento e exclusão.</span></p><p><b>✓</b><span><strong>Sem promessa mágica</strong> O Rico organiza informação para apoiar suas decisões, não promete enriquecer você.</span></p></div></section>
+
+  <section class="sales-final-cta"><p class="sales-eyebrow"><span></span> Comece pelo próximo passo</p><h2>Seu dinheiro já está acontecendo.<br><em>Agora você pode enxergá-lo.</em></h2><button class="sales-primary" type="button" onclick="openAuth('register')">Criar minha conta grátis <span>→</span></button><p>Leva menos de dois minutos para começar.</p></section>
+  <footer class="sales-footer"><span>◆ RICO</span><small>Controle financeiro com IA · Desenvolvido por Jean Oliveira</small><a href="#top">Voltar ao topo ↑</a></footer>
+</main>
+<div id="auth-overlay" class="ov" style="display:none; z-index: 200; align-items: center; justify-content: center; background: var(--bg);">
 
   <!-- ── TELA DE LOGIN ── -->
   <div id="auth-login" class="card" style="width:90%;max-width:380px;">
