@@ -28,8 +28,44 @@ const supabaseClient = window.supabase.createClient(supabaseUrl, supabaseKey);
 let currentUser = null;
 let currentPlan = 'essential';
 let subscriptionStatus = 'inactive';
+let subscriptionEnd = null;
+let aiMonthCount = 0, aiMonthLimit = 0;
+
+// Cotas espelhadas do servidor (a decisão real é da Edge Function; aqui é só a UI)
+const AI_MONTH_LIMIT = { intelligent_active: 300, intelligent_trial: 20, essential: 0, none: 0 };
+
+function planKey(){
+  if(currentPlan === 'intelligent') return subscriptionStatus === 'trialing' ? 'intelligent_trial' : 'intelligent_active';
+  if(currentPlan === 'essential') return 'essential';
+  return 'none';
+}
+
 function hasAiAccess(){
-  return currentPlan === 'intelligent' && ['active','trialing'].includes(subscriptionStatus);
+  if(currentPlan !== 'intelligent') return false;
+  if(!['active','trialing'].includes(subscriptionStatus)) return false;
+  // O teste grátis tem prazo: se venceu, cai o acesso mesmo que o status diga 'trialing'.
+  if(subscriptionStatus === 'trialing' && subscriptionEnd && new Date(subscriptionEnd) < new Date()) return false;
+  return true;
+}
+
+function trialDaysLeft(){
+  if(subscriptionStatus !== 'trialing' || !subscriptionEnd) return null;
+  return Math.max(0, Math.ceil((new Date(subscriptionEnd) - new Date()) / 86400000));
+}
+
+function aiLimitLabel(){
+  if(subscriptionStatus === 'trialing') return `${aiMonthCount}/${aiMonthLimit || 20} usos no teste`;
+  return `${aiMonthCount}/${aiMonthLimit || AI_MONTH_LIMIT[planKey()] || 0} usos neste mês`;
+}
+
+async function loadAiUsage(){
+  if(!currentUser) return;
+  try{
+    const { data } = await supabaseClient.from('ai_usage')
+      .select('month_count').eq('user_id', currentUser.id).eq('period', nm()).maybeSingle();
+    aiMonthCount = data?.month_count || 0;
+    aiMonthLimit = AI_MONTH_LIMIT[planKey()] || 0;
+  }catch(e){ console.error('loadAiUsage:', e); }
 }
 
 // ═══════ OFFLINE SYNC QUEUE ═══════
@@ -240,7 +276,7 @@ async function doLogout() {
 const KEY='rico_v5';
 
 async function loadData(){
-  const [p,tx,b,d,sh,i,bh,sub] = await Promise.all([
+  const [p,tx,b,d,sh,i,bh,sub,aiu] = await Promise.all([
     supabaseClient.from('profiles').select('*').eq('id', currentUser.id).maybeSingle(),
     supabaseClient.from('transactions').select('*').eq('user_id', currentUser.id),
     supabaseClient.from('bills').select('*').eq('user_id', currentUser.id),
@@ -248,7 +284,8 @@ async function loadData(){
     supabaseClient.from('shopping_list').select('*').eq('user_id', currentUser.id),
     supabaseClient.from('investments').select('*').eq('user_id', currentUser.id),
     supabaseClient.from('balance_history').select('*').eq('user_id', currentUser.id),
-    supabaseClient.from('subscriptions').select('plan_key,status,updated_at').eq('user_id', currentUser.id).order('updated_at', {ascending:false}).limit(1).maybeSingle()
+    supabaseClient.from('subscriptions').select('plan_key,status,current_period_end,updated_at').eq('user_id', currentUser.id).order('updated_at', {ascending:false}).limit(1).maybeSingle(),
+    supabaseClient.from('ai_usage').select('month_count').eq('user_id', currentUser.id).eq('period', nm()).maybeSingle()
   ]);
   if(p.data){
     ST.balance = Number(p.data.balance) || 0;
@@ -259,6 +296,9 @@ async function loadData(){
   }
   currentPlan = sub.data?.plan_key || 'essential';
   subscriptionStatus = sub.data?.status || 'inactive';
+  subscriptionEnd = sub.data?.current_period_end || null;
+  aiMonthCount = aiu.data?.month_count || 0;
+  aiMonthLimit = AI_MONTH_LIMIT[planKey()] || 0;
   if(tx.data) ST.transactions = tx.data.map(t=>({id: parseFloat(t.created_id), type: t.type, amount: Number(t.amount), desc: t.description, category: t.category, date: t.date, recurring: t.recurring, recurringFrom: t.recurring_from})).sort((a,b)=>new Date(b.date)-new Date(a.date));
   if(b.data) ST.bills = b.data.map(x=>({id: parseFloat(x.created_id), name: x.name, amount: Number(x.amount), category: x.category, dueDay: x.due_day, month: x.month, paid: x.paid}));
   if(d.data) ST.debts = d.data.map(x=>({id: parseFloat(x.created_id), creditor: x.creditor, amount: Number(x.amount), dueDate: x.due_date, note: x.note, paid: x.paid}));
@@ -962,10 +1002,18 @@ async function startCheckout(plan='intelligent', billing='monthly'){
   }
 }
 
+function aiStatusLine(){
+  if(!hasAiAccess()) return '';
+  const dias = trialDaysLeft();
+  const aviso = (aiMonthLimit>0 && aiMonthCount >= aiMonthLimit) ? ' Você atingiu o limite deste mês.' : '';
+  const trial = (dias!==null) ? ` · teste termina em ${dias} dia${dias===1?'':'s'}` : '';
+  return `<p class="mu" style="font-size:11px;margin-top:8px;color:var(--muted2)">✦ ${aiLimitLabel()}${trial}.${aviso}</p>`;
+}
+
 function rAI(){
   if(!hasAiAccess()) return `<div class="card ai-paywall"><p class="sl">🤖 RICO — Assistente Financeiro</p><h3>Tenha clareza com ajuda da IA.</h3><p class="mu">O plano Inteligente analisa seus gastos, responde suas perguntas e sugere o próximo passo com base nos seus dados.</p><button class="sb" onclick="openPricing('intelligent')">Conhecer o plano Inteligente →</button></div>`;
   const ch=ach.map(m=>`<div class="bub ${m.role==='user'?'usr':''}"><${m.role==='assistant'?'span style="font-size:18px;flex-shrink:0">💎</span>':''}<div class="bt">${es(m.content)}</div></div>`).join('');
-  return `<div class="card"><p class="sl">🤖 RICO — Assistente Financeiro</p><p class="mu">Seu assistente de finanças pessoais com IA. Gastar Bem, Investir Melhor, Ganhar Mais.</p></div>
+  return `<div class="card"><p class="sl">🤖 RICO — Assistente Financeiro</p><p class="mu">Seu assistente de finanças pessoais com IA. Gastar Bem, Investir Melhor, Ganhar Mais.</p>${aiStatusLine()}</div>
   <div class="cb2" id="acb">${ach.length===0?`<div style="display:flex;flex-direction:column;align-items:center;padding:24px 0"><span style="font-size:48px">💎</span><p style="color:var(--muted2);margin-top:12px;font-size:13px;text-align:center">Seu assistente de finanças pessoais com IA</p><div class="sr">${['Analisa minha situação','Regra 50-30-20?','Plano para R$100k','Como ganhar mais?','Gastos compulsivos?'].map(s=>`<button class="sgb" onclick="sai('${s}')">${s}</button>`).join('')}</div></div>`:ch}${al?`<div class="bub"><span style="font-size:18px">💎</span><div class="bt" style="animation:pulse 1s infinite">Analisando sua situação...</div></div>`:''}</div>
   <div class="cr"><input class="ci" id="aii" placeholder="Escreva sua pergunta..." onkeydown="if(event.key==='Enter')aa()"/><button class="snd" onclick="aa()" ${al?'disabled':''}>➤</button></div>`;
 }
@@ -1287,12 +1335,23 @@ function exportPDF(){
 // ═══════ AI CALLS ═══════
 async function callAI(messages,system){
   if(!hasAiAccess()) throw new Error('O assistente de IA está disponível no plano Inteligente.');
+  // Manda o token do USUÁRIO. A anon key é pública e não identifica ninguém.
+  const { data:{ session } } = await supabaseClient.auth.getSession();
+  const token = session?.access_token;
+  if(!token) throw new Error('Entre novamente na sua conta para usar a IA.');
   const r=await fetch('https://vizsvjysklidnkzqxltn.supabase.co/functions/v1/openai_chat',{
     method:'POST',
-    headers:{'Content-Type':'application/json','Authorization':'Bearer '+supabaseKey},
+    headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},
     body:JSON.stringify({model:'gpt-4o-mini',max_tokens:1000,messages:[{role:'system',content:system},...messages]})
   });
-  const d=await r.json();return d.choices?.[0]?.message?.content||'Erro ao conectar.';
+  let d={};
+  try{ d=await r.json(); }catch(_){}
+  if(!r.ok || d.error){
+    // Bateu no teto de uso: recarrega o contador para a tela refletir a realidade.
+    if(r.status===429 || r.status===402) loadAiUsage();
+    throw new Error(d?.error?.message || ('Erro de conexão HTTP '+r.status));
+  }
+  return d.choices?.[0]?.message?.content||'Erro ao conectar.';
 }
 
 async function aa(){
@@ -1307,7 +1366,7 @@ async function aa(){
   const sup=ST.shoppingList.filter(i=>!i.bought&&i.priority==='supérfluo');
   const sys=`${LV}\nVocê é RICO, assistente de finanças pessoais. Direto, empático, motivador.\nSaldo ${fB(ST.balance)} | Meta R$100k | ${fP(Math.min((ST.balance/GOAL)*100,100))} | Entradas ${fB(tIn)} | Saídas ${fB(tOut)} | Investido ${fB(tInv)} | Dívidas ${fB(dS)} | Supérfluos: ${sup.length} | Streak: ${ST.streak||0} dias\nMáx 3 parágrafos. Use os princípios de finanças pessoais. Detecte compulsões. Meta R$100k→R$1M.`;
   try{const reply=await callAI(ach.map(m=>({role:m.role,content:m.content})),sys);ach.push({role:'assistant',content:reply});}
-  catch(e){ach.push({role:'assistant',content:'❌ Erro de conexão. Verifique sua internet.'});}
+  catch(e){ach.push({role:'assistant',content:'❌ '+(e?.message||'Erro de conexão. Verifique sua internet.')});}
   al=false;sv_();render();
 }
 
@@ -1319,7 +1378,7 @@ async function aia(){
   const tI=ST.investments.reduce((a,b)=>a+b.amount,0);
   const sys=`${LV}\nVocê é RICO, consultor de investimentos com IA.\n${fB(tI)} investidos | Saldo: ${fB(ST.balance)} | Meta: R$100k\nMáx 3 parágrafos. Exemplos em R$. Cite corretoras reais. Use princípios sólidos de investimento.`;
   try{const reply=await callAI(ich.map(m=>({role:m.role,content:m.content})),sys);ich.push({role:'assistant',content:reply});}
-  catch(e){ich.push({role:'assistant',content:'❌ Erro.'});}
+  catch(e){ich.push({role:'assistant',content:'❌ '+(e?.message||'Erro.')});}
   ial=false;sv_();render();
 }
 
@@ -1347,7 +1406,7 @@ async function anv(){
   try{
     const raw=await callAI([{role:'user',content:prompt}],'Responda apenas JSON válido sem markdown.');
     invA=JSON.parse(raw.replace(/```json|```/g,'').trim());
-  }catch(e){invA={diagnostico:'Erro ao conectar.',recomendacoes:[],alertasPrioritarios:[]};}
+  }catch(e){invA={diagnostico:'❌ '+(e?.message||'Erro ao conectar.'),recomendacoes:[],alertasPrioritarios:[]};}
   ia=false;sv_();render();
 }
 
