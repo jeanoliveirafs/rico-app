@@ -111,6 +111,7 @@ function openAuth(view='register'){
   const sales=document.getElementById('sales-page');
   const overlay=document.getElementById('auth-overlay');
   document.body.classList.remove('sales-mode');
+  document.documentElement.classList.remove('sales-mode');
   if(sales) sales.style.display='none';
   if(overlay) overlay.style.display='flex';
   switchAuth(view);
@@ -124,6 +125,7 @@ function showSalesPage(){
   const sales=document.getElementById('sales-page');
   const overlay=document.getElementById('auth-overlay');
   document.body.classList.add('sales-mode');
+  document.documentElement.classList.add('sales-mode');
   if(sales) sales.style.display='block';
   if(overlay) overlay.style.display='none';
 }
@@ -300,6 +302,7 @@ async function ld(){
   // ════════════════════════════════════════════════════════════
   if(cachedUid){
     document.body.classList.remove('sales-mode');
+    document.documentElement.classList.remove('sales-mode');
     document.getElementById('sales-page').style.display   = 'none';
     document.getElementById('auth-overlay').style.display = 'none';
     document.getElementById('app').style.display          = 'flex';
@@ -326,6 +329,7 @@ async function ld(){
     _appStarted = true;
     currentUser = user;
     document.body.classList.remove('sales-mode');
+    document.documentElement.classList.remove('sales-mode');
 
     _resetAuthButtons(); // garante que nenhum botão fique preso
 
