@@ -26,6 +26,11 @@ const supabaseUrl = import.meta.env?.VITE_SUPABASE_URL || 'https://vizsvjysklidn
 const supabaseKey = import.meta.env?.VITE_SUPABASE_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZpenN2anlza2xpZG5renF4bHRuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU0NTMyOTEsImV4cCI6MjA5MTAyOTI5MX0.PDuihuZjEUyTwPIXSsXagKA5H0L7Cd0aATnZjUAbtLg';
 const supabaseClient = window.supabase.createClient(supabaseUrl, supabaseKey);
 let currentUser = null;
+let currentPlan = 'essential';
+let subscriptionStatus = 'inactive';
+function hasAiAccess(){
+  return currentPlan === 'intelligent' && ['active','trialing'].includes(subscriptionStatus);
+}
 
 // ═══════ OFFLINE SYNC QUEUE ═══════
 let isOnline = navigator.onLine;
@@ -107,9 +112,10 @@ function showOfflineBadge(){
 
 
 // Abre o acesso a partir da página pública sem perder a intenção do visitante.
-function openAuth(view='register'){
+function openAuth(view='register', plan=''){
   const sales=document.getElementById('sales-page');
   const overlay=document.getElementById('auth-overlay');
+  if(plan) localStorage.setItem('rico_pending_plan', plan);
   document.body.classList.remove('sales-mode');
   document.documentElement.classList.remove('sales-mode');
   if(sales) sales.style.display='none';
@@ -234,14 +240,15 @@ async function doLogout() {
 const KEY='rico_v5';
 
 async function loadData(){
-  const [p,tx,b,d,sh,i,bh] = await Promise.all([
+  const [p,tx,b,d,sh,i,bh,sub] = await Promise.all([
     supabaseClient.from('profiles').select('*').eq('id', currentUser.id).maybeSingle(),
     supabaseClient.from('transactions').select('*').eq('user_id', currentUser.id),
     supabaseClient.from('bills').select('*').eq('user_id', currentUser.id),
     supabaseClient.from('debts').select('*').eq('user_id', currentUser.id),
     supabaseClient.from('shopping_list').select('*').eq('user_id', currentUser.id),
     supabaseClient.from('investments').select('*').eq('user_id', currentUser.id),
-    supabaseClient.from('balance_history').select('*').eq('user_id', currentUser.id)
+    supabaseClient.from('balance_history').select('*').eq('user_id', currentUser.id),
+    supabaseClient.from('subscriptions').select('plan_key,status,updated_at').eq('user_id', currentUser.id).order('updated_at', {ascending:false}).limit(1).maybeSingle()
   ]);
   if(p.data){
     ST.balance = Number(p.data.balance) || 0;
@@ -250,6 +257,8 @@ async function loadData(){
     ST.theme = p.data.theme || 'dark';
     ST.budgetLimits = p.data.budget_limits || {};
   }
+  currentPlan = sub.data?.plan_key || 'essential';
+  subscriptionStatus = sub.data?.status || 'inactive';
   if(tx.data) ST.transactions = tx.data.map(t=>({id: parseFloat(t.created_id), type: t.type, amount: Number(t.amount), desc: t.description, category: t.category, date: t.date, recurring: t.recurring, recurringFrom: t.recurring_from})).sort((a,b)=>new Date(b.date)-new Date(a.date));
   if(b.data) ST.bills = b.data.map(x=>({id: parseFloat(x.created_id), name: x.name, amount: Number(x.amount), category: x.category, dueDay: x.due_day, month: x.month, paid: x.paid}));
   if(d.data) ST.debts = d.data.map(x=>({id: parseFloat(x.created_id), creditor: x.creditor, amount: Number(x.amount), dueDate: x.due_date, note: x.note, paid: x.paid}));
@@ -339,9 +348,12 @@ async function ld(){
 
     // Carrega dados frescos do Supabase (sobrescreve o cache)
     await loadData();
+    const pendingPlan=localStorage.getItem('rico_pending_plan');
+    if(pendingPlan) localStorage.removeItem('rico_pending_plan');
     applyTheme(); processRecurring(); updateStreak(); recordBalance();
     flushQueue(); checkBillNotifications(); injectManifest(); registerSW(); showIOSHint();
     render();
+    if(pendingPlan) setTimeout(()=>openPricing(pendingPlan), 150);
     sv_(); // persiste cache atualizado com dados do Supabase
   }
 
@@ -927,7 +939,31 @@ function rInvest(){
 }
 
 // ═══════ AI ═══════
+function openPricing(selected='intelligent'){
+  if(!currentUser){openAuth('register', selected);return;}
+  const mc=document.getElementById('mc');
+  mc.innerHTML=`<p class="mt">Escolha seu plano</p><p class="mu" style="margin-bottom:16px">Seu plano atual: <strong>${currentPlan==='intelligent'?'Rico Inteligente':'Rico Essencial'}</strong>. A IA é liberada após a confirmação da assinatura.</p>
+    <div class="sales-plan-modal"><button class="sales-plan-option${selected==='essential'?' selected':''}" onclick="startCheckout('essential','monthly')"><b>Essencial</b><span>R$ 9,90/mês</span><small>Controle financeiro completo</small></button><button class="sales-plan-option${selected==='intelligent'?' selected':''}" onclick="startCheckout('intelligent','monthly')"><b>Inteligente</b><span>R$ 19,90/mês</span><small>Controle + assistente de IA</small></button></div>
+    <p class="mu" style="margin-top:14px">O pagamento é processado com segurança pelo Asaas.</p><button class="cb" onclick="cm()">Agora não</button>`;
+  document.getElementById('mov').style.display='flex';
+}
+
+async function startCheckout(plan='intelligent', billing='monthly'){
+  if(!currentUser){openAuth('register',plan);return;}
+  const button=typeof event!=='undefined'?event.currentTarget:null;
+  if(button){button.disabled=true;button.textContent='Preparando checkout...';}
+  try{
+    const {data,error}=await supabaseClient.functions.invoke('create-asaas-checkout',{body:{plan,billing}});
+    if(error||!data?.checkoutUrl) throw new Error(data?.error||error?.message||'Checkout indisponível');
+    window.location.href=data.checkoutUrl;
+  }catch(e){
+    showToast(e.message||'Não foi possível abrir o checkout','var(--red)');
+    if(button){button.disabled=false;button.textContent='Tentar novamente';}
+  }
+}
+
 function rAI(){
+  if(!hasAiAccess()) return `<div class="card ai-paywall"><p class="sl">🤖 RICO — Assistente Financeiro</p><h3>Tenha clareza com ajuda da IA.</h3><p class="mu">O plano Inteligente analisa seus gastos, responde suas perguntas e sugere o próximo passo com base nos seus dados.</p><button class="sb" onclick="openPricing('intelligent')">Conhecer o plano Inteligente →</button></div>`;
   const ch=ach.map(m=>`<div class="bub ${m.role==='user'?'usr':''}"><${m.role==='assistant'?'span style="font-size:18px;flex-shrink:0">💎</span>':''}<div class="bt">${es(m.content)}</div></div>`).join('');
   return `<div class="card"><p class="sl">🤖 RICO — Assistente Financeiro</p><p class="mu">Seu assistente de finanças pessoais com IA. Gastar Bem, Investir Melhor, Ganhar Mais.</p></div>
   <div class="cb2" id="acb">${ach.length===0?`<div style="display:flex;flex-direction:column;align-items:center;padding:24px 0"><span style="font-size:48px">💎</span><p style="color:var(--muted2);margin-top:12px;font-size:13px;text-align:center">Seu assistente de finanças pessoais com IA</p><div class="sr">${['Analisa minha situação','Regra 50-30-20?','Plano para R$100k','Como ganhar mais?','Gastos compulsivos?'].map(s=>`<button class="sgb" onclick="sai('${s}')">${s}</button>`).join('')}</div></div>`:ch}${al?`<div class="bub"><span style="font-size:18px">💎</span><div class="bt" style="animation:pulse 1s infinite">Analisando sua situação...</div></div>`:''}</div>
@@ -1250,6 +1286,7 @@ function exportPDF(){
 
 // ═══════ AI CALLS ═══════
 async function callAI(messages,system){
+  if(!hasAiAccess()) throw new Error('O assistente de IA está disponível no plano Inteligente.');
   const r=await fetch('https://vizsvjysklidnkzqxltn.supabase.co/functions/v1/openai_chat',{
     method:'POST',
     headers:{'Content-Type':'application/json','Authorization':'Bearer '+supabaseKey},
@@ -1259,6 +1296,7 @@ async function callAI(messages,system){
 }
 
 async function aa(){
+  if(!hasAiAccess()){openPricing('intelligent');return;}
   const inp=document.getElementById('aii');if(!inp||!inp.value.trim()||al)return;
   const msg=inp.value.trim();inp.value='';al=true;
   ach.push({role:'user',content:msg});render();
@@ -1274,6 +1312,7 @@ async function aa(){
 }
 
 async function aia(){
+  if(!hasAiAccess()){openPricing('intelligent');return;}
   const inp=document.getElementById('iai');if(!inp||!inp.value.trim()||ial)return;
   const msg=inp.value.trim();inp.value='';ial=true;
   ich.push({role:'user',content:msg});render();
@@ -1285,6 +1324,7 @@ async function aia(){
 }
 
 async function aip(){
+  if(!hasAiAccess()){openPricing('intelligent');return;}
   const pend=ST.shoppingList.filter(i=>!i.bought);
   if(!pend.length||ap)return;ap=true;render();
   const prompt=`${LV}\nClassifique usando custo de oportunidade:\n"essencial","importante","desejo","supérfluo"\nSaldo: ${fB(ST.balance)} | Meta: R$100k\n${pend.map((i,n)=>`${n+1}. id:${i.id} | ${i.name} | R$${i.estimatedPrice||'?'} | motivo: ${i.reason||'?'}`).join('\n')}\nJSON SOMENTE: {"items":[{"id":NUMERO,"priority":"valor","justification":"1 frase"}]}`;
@@ -1297,6 +1337,7 @@ async function aip(){
 }
 
 async function anv(){
+  if(!hasAiAccess()){openPricing('intelligent');return;}
   if(ia)return;ia=true;render();
   const tI=ST.investments.reduce((a,b)=>a+b.amount,0);
   const res=ST.investments.filter(i=>i.type==='reserva').reduce((a,b)=>a+b.amount,0);
@@ -1441,7 +1482,7 @@ function setComp(field, v)  {
 
 Object.assign(window, {
   // Auth
-  doLogin, doLogout, doRegister, openAuth,
+  doLogin, doLogout, doRegister, openAuth, openPricing, startCheckout,
   // UI
   toggleTheme, sv, om, cm, render,
   // Export
