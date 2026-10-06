@@ -157,7 +157,7 @@ button{cursor:pointer;font-family:'Syne',sans-serif}
 
 
 /* ── SALES PAGE ── */
-.sales-page{min-height:100vh;background:radial-gradient(circle at 78% 12%,rgba(74,222,128,.11),transparent 27%),radial-gradient(circle at 12% 48%,rgba(99,102,241,.08),transparent 28%),#07090b;color:#eef7f1;overflow:hidden;font-family:'Syne',sans-serif}
+.sales-page{min-height:100vh;background:radial-gradient(circle at 78% 12%,rgba(74,222,128,.11),transparent 27%),radial-gradient(circle at 12% 48%,rgba(99,102,241,.08),transparent 28%),#07090b;color:#eef7f1;overflow:visible;font-family:'Syne',sans-serif}
 .sales-nav{height:76px;max-width:1160px;margin:0 auto;padding:0 28px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid rgba(255,255,255,.07)}
 .sales-brand{color:#f4fff7;text-decoration:none;font-size:19px;font-weight:800;letter-spacing:.08em;display:flex;align-items:center;gap:9px}.sales-brand-mark{color:#4ade80;font-size:20px;text-shadow:0 0 20px rgba(74,222,128,.7)}
 .sales-nav-links{display:flex;align-items:center;gap:26px}.sales-nav-links a,.sales-login-link{color:#9ba9a1;text-decoration:none;background:none;border:0;font:600 11px 'Syne',sans-serif;cursor:pointer;transition:color .2s}.sales-nav-links a:hover,.sales-login-link:hover{color:#fff}.sales-nav-cta{background:#4ade80;border:0;border-radius:8px;padding:11px 17px;color:#06100a;font:800 11px 'Syne',sans-serif;cursor:pointer;box-shadow:0 8px 26px rgba(74,222,128,.16)}
