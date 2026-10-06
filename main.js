@@ -1335,7 +1335,7 @@ function injectManifest(){
 function registerSW(){
   if(!('serviceWorker' in navigator))return;
   const sw=`
-const C='rico-app-v2';
+const C='rico-app-v3-sales-scroll';
 const STATIC=['./'];
 self.addEventListener('install',e=>{
   e.waitUntil(caches.open(C).then(c=>c.addAll(STATIC).catch(()=>{})));
@@ -1478,6 +1478,8 @@ Object.assign(window, {
 // startApp() dentro de ld() cuida de toda a inicialização.
 // initApp() só precisa iniciar o processo de auth.
 async function initApp() {
+  // Atualiza o cache mesmo sem sessão, evitando que visitantes recebam o shell antigo.
+  registerSW();
   await ld();
 }
 initApp();
