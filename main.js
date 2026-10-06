@@ -110,6 +110,7 @@ function showOfflineBadge(){
 function openAuth(view='register'){
   const sales=document.getElementById('sales-page');
   const overlay=document.getElementById('auth-overlay');
+  document.body.classList.remove('sales-mode');
   if(sales) sales.style.display='none';
   if(overlay) overlay.style.display='flex';
   switchAuth(view);
@@ -122,6 +123,7 @@ function openAuth(view='register'){
 function showSalesPage(){
   const sales=document.getElementById('sales-page');
   const overlay=document.getElementById('auth-overlay');
+  document.body.classList.add('sales-mode');
   if(sales) sales.style.display='block';
   if(overlay) overlay.style.display='none';
 }
@@ -297,6 +299,7 @@ async function ld(){
   //           (antes de qualquer chamada de rede)
   // ════════════════════════════════════════════════════════════
   if(cachedUid){
+    document.body.classList.remove('sales-mode');
     document.getElementById('sales-page').style.display   = 'none';
     document.getElementById('auth-overlay').style.display = 'none';
     document.getElementById('app').style.display          = 'flex';
@@ -322,6 +325,7 @@ async function ld(){
     if(_appStarted) return;
     _appStarted = true;
     currentUser = user;
+    document.body.classList.remove('sales-mode');
 
     _resetAuthButtons(); // garante que nenhum botão fique preso
 
