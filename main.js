@@ -22,9 +22,7 @@ let ach=[],ich=[];
 let txPage=0,txPerPage=15,txFilterMonth='',txFilterCat='',txFilterType='',txSearch='';
 
 // ═══════ SUPABASE INITIALIZATION ═══════
-const supabaseUrl = import.meta.env?.VITE_SUPABASE_URL || 'https://vizsvjysklidnkzqxltn.supabase.co';
-const supabaseKey = import.meta.env?.VITE_SUPABASE_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZpenN2anlza2xpZG5renF4bHRuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU0NTMyOTEsImV4cCI6MjA5MTAyOTI5MX0.PDuihuZjEUyTwPIXSsXagKA5H0L7Cd0aATnZjUAbtLg';
-const supabaseClient = window.supabase.createClient(supabaseUrl, supabaseKey);
+import { supabaseClient, SUPABASE_URL } from './src/supabaseClient.js';
 let currentUser = null;
 let currentPlan = 'essential';
 let subscriptionStatus = 'inactive';
@@ -1339,7 +1337,7 @@ async function callAI(messages,system){
   const { data:{ session } } = await supabaseClient.auth.getSession();
   const token = session?.access_token;
   if(!token) throw new Error('Entre novamente na sua conta para usar a IA.');
-  const r=await fetch('https://vizsvjysklidnkzqxltn.supabase.co/functions/v1/openai_chat',{
+  const r=await fetch(SUPABASE_URL+'/functions/v1/openai_chat',{
     method:'POST',
     headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},
     body:JSON.stringify({model:'gpt-4o-mini',max_tokens:1000,messages:[{role:'system',content:system},...messages]})
