@@ -23,6 +23,7 @@ let txPage=0,txPerPage=15,txFilterMonth='',txFilterCat='',txFilterType='',txSear
 
 // ═══════ SUPABASE INITIALIZATION ═══════
 import { supabaseClient, SUPABASE_URL } from './src/supabaseClient.js';
+import { parseLancamento, lerExtrato, ehDuplicada, comparativoMensal, alertaOrcamento } from './src/t42_features.mjs';
 let currentUser = null;
 let currentPlan = 'essential';
 let subscriptionStatus = 'inactive';
@@ -136,7 +137,7 @@ async function flushQueue(){
 function showToast(msg, color='var(--green)'){
   let t=document.getElementById('rico-toast');
   if(!t){t=document.createElement('div');t.id='rico-toast';t.style.cssText='position:fixed;top:calc(env(safe-area-inset-top,0px)+12px);left:50%;transform:translateX(-50%);padding:8px 16px;border-radius:20px;font-size:12px;font-weight:700;z-index:999;pointer-events:none;transition:opacity .4s';document.body.appendChild(t);}
-  t.textContent=msg;t.style.background=color==='var(--green)'?'rgba(74,222,128,.9)':'rgba(248,113,113,.9)';t.style.color='#06060f';t.style.opacity='1';
+  t.textContent=msg;t.style.background=color==='var(--green)'?'rgba(74,222,128,.9)':color==='var(--yellow)'?'rgba(250,204,21,.92)':'rgba(248,113,113,.9)';t.style.color='#06060f';t.style.opacity='1';
   clearTimeout(t._to);t._to=setTimeout(()=>t.style.opacity='0',2500);
 }
 
@@ -884,6 +885,37 @@ function rDash(){
     goalsHTML=`<div class="card"><div class="rb"><p class="sl">Minhas Metas</p><button class="gb" onclick="om('goal')">+ Nova meta</button></div>${goalRows}</div>`;
   }
 
+  const quickTxCard = `<div class="card" style="border-color:rgba(74,222,128,0.3)">
+    <p class="sl">⚡ Lançamento rápido</p>
+    <div class="rw" style="gap:8px;margin-top:8px">
+      <input class="ip" id="qtx" placeholder="Ex.: gastei 32,50 no ifood ontem" oninput="updateQtxPrev()" onkeydown="if(event.key==='Enter')quickTx()" style="margin-bottom:0;flex:1"/>
+      <button class="pb" onclick="quickTx()">Lançar</button>
+    </div>
+    <div id="qtxp" style="margin-top:6px;min-height:16px"></div>
+  </div>`;
+
+  const compData = comparativoMensal(ST.transactions, nm());
+  let compCardHTML = '';
+  if(compData.length > 0){
+    const rows = compData.map(item => {
+      const cat = gc(TXC, item.cat);
+      const varHtml = item.variacao > 0 ? `<span style="color:var(--red);font-size:11px;font-weight:700">↑ ${item.variacao}%</span>` :
+                      item.variacao < 0 ? `<span style="color:var(--green);font-size:11px;font-weight:700">↓ ${Math.abs(item.variacao)}%</span>` :
+                      `<span style="color:var(--muted);font-size:11px">novo</span>`;
+      return `<div class="rw" style="justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border)">
+        <div class="rw" style="gap:8px;align-items:center">
+          <span style="font-size:16px">${cat.emoji}</span>
+          <div><span style="font-size:12px;font-weight:600">${cat.label}</span><span class="ti" style="display:block;font-size:10px;color:var(--muted)">anterior: ${fB(item.antes)}</span></div>
+        </div>
+        <div style="text-align:right">
+          <span class="mo" style="font-size:13px;font-weight:700">${fB(item.valor)}</span>
+          <div style="margin-top:2px">${varHtml}</div>
+        </div>
+      </div>`;
+    }).join('');
+    compCardHTML = `<div class="card"><p class="sl">📊 Comparado ao mês passado</p>${rows}</div>`;
+  }
+
   return `${welcomeHTML}
   ${netWorthCard}
   <div class="card" style="animation:glow 3s infinite">
@@ -897,8 +929,10 @@ function rDash(){
     <div class="sc" style="border-color:rgba(250,204,21,.3)"><span>📋</span><span class="mo" style="font-size:14px;font-weight:700;color:var(--yellow)">${fB(bS)}</span><span class="ti">Contas/mês</span><span class="ti" style="color:var(--muted2)">${bP}/${cB.length} pagas</span></div>
     <div class="sc" style="border-color:rgba(167,139,250,.3)"><span>📈</span><span class="mo" style="font-size:14px;font-weight:700;color:var(--purple)">${fB(tInv)}</span><span class="ti">Investido</span><span class="ti" style="color:var(--muted2)">🛡️ ${fB(res)}</span></div>
   </div>
+  ${quickTxCard}
   ${possoGastarCard}
   ${goalsHTML}
+  ${compCardHTML}
   ${alHTML}${streakHTML}${chartHTML}${donutHTML}${budgetHTML}
   <div class="card">
     <div class="rb"><span class="sl">Transações recentes</span>
@@ -954,6 +988,7 @@ function rHistory(){
     <div class="rb" style="margin-bottom:10px">
       <p class="sl" style="margin:0">Todas as Transações</p>
       <div class="rw" style="gap:6px">
+        <button class="export-btn" onclick="om('import')">📥 Importar extrato</button>
         <button class="export-btn" onclick="exportCSV()">📥 CSV</button>
         <button class="export-btn" onclick="exportPDF()" style="background:rgba(248,113,113,.15);color:var(--red)">📄 PDF</button>
         <button class="gb" onclick="om('tx')">+ Nova</button>
@@ -1183,6 +1218,7 @@ function om(type, arg){
   else if(type==='budget')mc.innerHTML=mBudget();
   else if(type==='goal')mc.innerHTML=mGoal();
   else if(type==='goaldep')mc.innerHTML=mGoalDep(arg);
+  else if(type==='import')mc.innerHTML=mImport();
   document.getElementById('mov').style.display='flex';
   setTimeout(()=>{const f=document.querySelector('.sh input');if(f)f.focus();},100);
 }
@@ -1263,6 +1299,148 @@ function stt(t){
   document.getElementById('tcw').style.display=t==='expense'?'block':'none';
 }
 
+let _txSeq=0;
+function addTx({type, amount, desc, category, date, recurring=false, recurringFrom=null}, opts={}){
+  // id inteiro único (ms*1000 + sequência) — evita colisão em importações em lote
+  const newTx={id:Date.now()*1000+(_txSeq++%1000), type, amount, desc, category, date: date || new Date().toISOString(), recurring, recurringFrom};
+  ST.transactions.unshift(newTx);
+  ST.balance += type==='income' ? amount : -amount;
+  recordBalance();
+  saveRow('transactions',{user_id:currentUser?.id, created_id:String(newTx.id), type, amount, description:desc, category, date:newTx.date, recurring, recurring_from:recurringFrom});
+  saveProfile();
+
+  if(type==='expense' && !opts.semAlerta){
+    const alerta = alertaOrcamento(ST.transactions, ST.budgetLimits, category, nm());
+    if(alerta){
+      const catLabel = gc(TXC, category).label;
+      if(alerta.nivel === 'estourou'){
+        showToast(`🚨 Limite de ${catLabel} estourado (${alerta.pct}%)`, 'var(--red)');
+      } else if(alerta.nivel === 'aviso'){
+        showToast(`⚠️ Você já usou ${alerta.pct}% do limite de ${catLabel}`, 'var(--yellow)');
+      }
+    }
+  }
+}
+
+function updateQtxPrev(){
+  const el = document.getElementById('qtx');
+  const prev = document.getElementById('qtxp');
+  if(!el || !prev) return;
+  const text = el.value;
+  if(!text.trim()){ prev.innerHTML = ''; return; }
+  const p = parseLancamento(text);
+  if(!p){
+    prev.innerHTML = '<span style="color:var(--red);font-size:11px">Não entendi o valor</span>';
+    return;
+  }
+  const cat = gc(TXC, p.category);
+  const typeLbl = p.type==='income'?'Receita':'Despesa';
+  prev.innerHTML = `<span style="color:var(--green);font-size:11px">${typeLbl} · ${fB(p.amount)} · ${cat.emoji} ${cat.label} · ${fD(p.date)}</span>`;
+}
+
+function quickTx(){
+  const inp = document.getElementById('qtx');
+  if(!inp) return;
+  const p = parseLancamento(inp.value);
+  if(!p){
+    showToast('Não entendi o valor', 'var(--red)');
+    return;
+  }
+  addTx({
+    type: p.type,
+    amount: p.amount,
+    desc: p.desc,
+    category: p.category,
+    date: p.date
+  });
+  inp.value = '';
+  const prev = document.getElementById('qtxp');
+  if(prev) prev.innerHTML = '';
+  showToast('Lançado!');
+  sv_();
+  render();
+}
+
+let impLinhas = [];
+
+function mImport(){
+  impLinhas = [];
+  return `<p class="mt">📥 Importar Extrato (OFX ou CSV)</p>
+  <p class="mu" style="font-size:12px;margin-bottom:10px">Selecione o arquivo OFX ou CSV exportado do seu banco (Nubank, Itaú, etc.).</p>
+  <input type="file" id="impf" accept=".csv,.ofx,.txt" onchange="impLer(this)" class="ip" style="margin-bottom:12px"/>
+  <div id="impp"></div>
+  <button class="cb" onclick="cm()">Fechar</button>`;
+}
+
+function impLer(input){
+  const file = input.files?.[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = function(e){
+    const text = e.target.result;
+    impLinhas = lerExtrato(text, file.name);
+    renderImportPreview();
+  };
+  reader.readAsText(file);
+}
+
+function renderImportPreview(){
+  const container = document.getElementById('impp');
+  if(!container) return;
+  if(!impLinhas.length){
+    container.innerHTML = '<p class="mu" style="font-size:12px;text-align:center;padding:10px">Nenhum lançamento encontrado no arquivo.</p>';
+    return;
+  }
+  const visivel = impLinhas.slice(0, 200);
+  const rows = visivel.map((l, i) => {
+    const duplicada = ehDuplicada(l, ST.transactions);
+    const checked = !duplicada ? 'checked' : '';
+    const cat = gc(TXC, l.category);
+    const col = l.type === 'income' ? 'var(--green)' : 'var(--red)';
+    const sign = l.type === 'income' ? '+' : '-';
+    return `<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--border);font-size:11px">
+      <input type="checkbox" id="imp_${i}" ${checked} style="flex-shrink:0"/>
+      <span style="color:var(--muted);width:45px;flex-shrink:0">${l.dia.slice(5).split('-').reverse().join('/')}</span>
+      <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${es(l.desc)}">${es(l.desc)}</span>
+      <span style="flex-shrink:0">${cat.emoji} ${cat.label}</span>
+      <span style="font-weight:700;color:${col};flex-shrink:0">${sign}${fB(l.amount)}</span>
+      ${duplicada ? '<span style="color:var(--yellow);font-size:9px;flex-shrink:0" title="Já existe lançamento idêntico">possível duplicada</span>' : ''}
+    </div>`;
+  }).join('');
+
+  container.innerHTML = `
+    <p class="sl" style="margin-bottom:6px">Prévia (${impLinhas.length} lançamento${impLinhas.length===1?'':'s'}${impLinhas.length>200?', exibindo primeiros 200':''}):</p>
+    <div style="max-height:220px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;padding:8px;margin-bottom:12px;background:var(--bg)">
+      ${rows}
+    </div>
+    <button class="sb" onclick="impConfirmar()">📥 Importar selecionados</button>
+  `;
+}
+
+function impConfirmar(){
+  let count = 0;
+  impLinhas.forEach((l, i) => {
+    const chk = document.getElementById(`imp_${i}`);
+    // linhas além das 200 exibidas: importa se não for duplicada
+    const marcado = chk ? chk.checked : !ehDuplicada(l, ST.transactions);
+    if(marcado){
+      addTx({
+        type: l.type,
+        amount: l.amount,
+        desc: l.desc,
+        category: l.category,
+        date: l.dia + 'T12:00:00'
+      }, {semAlerta:true});
+      count++;
+    }
+  });
+  if(!count){ showToast('Nenhum lançamento selecionado', 'var(--yellow)'); return; }
+  sv_();
+  cm();
+  render();
+  showToast(`${count} lançamento${count===1?'':'s'} importado${count===1?'':'s'}!`);
+}
+
 function stx(){
   const type=document.getElementById('tt').value;
   const amount=parseFloat(document.getElementById('ta').value.replace(',','.'));
@@ -1270,12 +1448,7 @@ function stx(){
   if(!amount||!desc)return;
   const category=type==='expense'?document.getElementById('tc').value:'outros';
   const recurring=document.getElementById('trec')?.checked||false;
-  const newTx={id:Date.now(),type,amount,desc,category,date:new Date().toISOString(),recurring,recurringFrom:null};
-  ST.transactions.unshift(newTx);
-  ST.balance+=type==='income'?amount:-amount;
-  recordBalance();
-  saveRow('transactions',{user_id:currentUser?.id,created_id:String(newTx.id),type,amount,description:desc,category,date:newTx.date,recurring,recurring_from:null});
-  saveProfile();
+  addTx({type, amount, desc, category, date:new Date().toISOString(), recurring});
   sv_();cm();render();
 }
 
@@ -1782,7 +1955,9 @@ Object.assign(window, {
   clearTxFilters, setTxPage, setTxSearch, setComp,
   copyPrevBills,
   // Auth
-  switchAuth
+  switchAuth,
+  // T42 features
+  quickTx, updateQtxPrev, impLer, impConfirmar
 });
 
 // ═══════ INIT ═══════
