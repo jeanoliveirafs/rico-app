@@ -28,6 +28,44 @@ let currentPlan = 'essential';
 let subscriptionStatus = 'inactive';
 let subscriptionEnd = null;
 let aiMonthCount = 0, aiMonthLimit = 0;
+// Teste grátis de 7 dias: prazo e acesso vêm do servidor (rpc get_access_status)
+let accessInfo = null; // {status, trial_ends_at, days_left, has_access}
+
+function accessBlocked(){ return !!(accessInfo && accessInfo.has_access === false); }
+
+function trialBanner(){
+  if(!accessInfo || accessInfo.status !== 'trialing' || !accessInfo.has_access) return '';
+  const d = accessInfo.days_left ?? 0;
+  const txt = d <= 1 ? 'Seu teste grátis termina hoje' : `Teste grátis: faltam ${d} dias`;
+  const fim = accessInfo.trial_ends_at ? new Date(accessInfo.trial_ends_at).toLocaleDateString('pt-BR') : '';
+  return `<div class="card" id="trial-banner" style="padding:10px 14px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;border-color:var(--green)"><span style="font-size:13px">🎁 <strong>${txt}</strong>${fim?` <span class="mu" style="font-size:12px">(até ${fim})</span>`:''}</span></div>`;
+}
+
+function rBlocked(){
+  const fim = accessInfo?.trial_ends_at ? new Date(accessInfo.trial_ends_at).toLocaleDateString('pt-BR') : '';
+  return `<div class="card" id="trial-blocked" style="max-width:520px;margin:40px auto;text-align:center;padding:28px 22px">
+    <div style="font-size:44px">⏳</div>
+    <h3 style="margin:10px 0 6px">Seu teste grátis de 7 dias terminou${fim?` em ${fim}`:''}</h3>
+    <p class="mu" style="margin-bottom:16px">Seus dados continuam guardados com segurança. Para continuar usando o RICO, escolha um plano assim que a assinatura estiver disponível.</p>
+    <button class="sb" disabled style="opacity:.6;cursor:not-allowed">Assinatura disponível em breve</button>
+    <p class="mu" style="font-size:12px;margin-top:14px">Nenhuma cobrança foi feita.</p>
+    <button class="cb" style="margin-top:10px" onclick="doLogout()">Sair</button>
+  </div>`;
+}
+
+async function loadAccessStatus(){
+  if(!currentUser) return;
+  try{
+    const { data, error } = await supabaseClient.rpc('get_access_status');
+    if(error) throw error;
+    const row = Array.isArray(data) ? data[0] : data;
+    accessInfo = row || { status: 'none', has_access: false, days_left: 0 };
+    if(accessInfo.status === 'trialing' && accessInfo.trial_ends_at) subscriptionEnd = accessInfo.trial_ends_at;
+  }catch(e){
+    // sem conexão: não bloqueia (o servidor decide quando voltar a internet)
+    console.warn('Status do teste indisponível', e);
+  }
+}
 
 // Cotas espelhadas do servidor (a decisão real é da Edge Function; aqui é só a UI)
 const AI_MONTH_LIMIT = { intelligent_active: 300, intelligent_trial: 20, essential: 0, none: 0 };
@@ -404,18 +442,20 @@ async function ld(){
 
     // Carrega dados frescos do Supabase (sobrescreve o cache)
     await loadData();
+    await loadAccessStatus();
     const pendingPlan=localStorage.getItem('rico_pending_plan');
     if(pendingPlan) localStorage.removeItem('rico_pending_plan');
     applyTheme(); processRecurring(); updateStreak(); recordBalance();
     flushQueue(); checkBillNotifications(); injectManifest(); registerSW(); showIOSHint();
     render();
-    if(pendingPlan) setTimeout(()=>openPricing(pendingPlan), 150);
+    if(pendingPlan && !accessBlocked()) setTimeout(()=>openPricing(pendingPlan), 150);
     sv_(); // persiste cache atualizado com dados do Supabase
   }
 
   function _handleSignOut(){
     _appStarted  = false;
     currentUser  = null;
+    accessInfo   = null;
     ST = {balance:0,transactions:[],bills:[],debts:[],
           shoppingList:[],investments:[],aiChat:[],invChat:[],
           budgetLimits:{},streak:0,lastNoSpurfluous:null,
@@ -624,6 +664,7 @@ function sv(v){
 function render(){
   const m=document.getElementById('main');
   m.className='fade';
+  if(accessBlocked()){ m.innerHTML=rBlocked(); uh(); return; }
   if(cv==='dashboard')m.innerHTML=rDash();
   else if(cv==='bills')m.innerHTML=rBills();
   else if(cv==='debts')m.innerHTML=rDebts();
@@ -631,6 +672,7 @@ function render(){
   else if(cv==='invest')m.innerHTML=rInvest();
   else if(cv==='ai')m.innerHTML=rAI();
   else if(cv==='history')m.innerHTML=rHistory();
+  const tb=trialBanner(); if(tb) m.insertAdjacentHTML('afterbegin', tb);
   uh();
   showOfflineBadge();
   setTimeout(()=>{['acb','icb'].forEach(id=>{const e=document.getElementById(id);if(e)e.scrollTop=e.scrollHeight;});},60);
@@ -1041,6 +1083,7 @@ function sii(s){const e=document.getElementById('iai');if(e)e.value=s;}
 
 // ═══════ MODALS ═══════
 function om(type){
+  if(accessBlocked()){ render(); return; }
   const mc=document.getElementById('mc');
   if(type==='tx')mc.innerHTML=mTx();
   else if(type==='bill')mc.innerHTML=mBill();
