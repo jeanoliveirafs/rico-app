@@ -22,9 +22,7 @@ let ach=[],ich=[];
 let txPage=0,txPerPage=15,txFilterMonth='',txFilterCat='',txFilterType='',txSearch='';
 
 // ═══════ SUPABASE INITIALIZATION ═══════
-const supabaseUrl = import.meta.env?.VITE_SUPABASE_URL || 'https://vizsvjysklidnkzqxltn.supabase.co';
-const supabaseKey = import.meta.env?.VITE_SUPABASE_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZpenN2anlza2xpZG5renF4bHRuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU0NTMyOTEsImV4cCI6MjA5MTAyOTI5MX0.PDuihuZjEUyTwPIXSsXagKA5H0L7Cd0aATnZjUAbtLg';
-const supabaseClient = window.supabase.createClient(supabaseUrl, supabaseKey);
+import { supabaseClient, SUPABASE_URL } from './src/supabaseClient.js';
 let currentUser = null;
 let currentPlan = 'essential';
 let subscriptionStatus = 'inactive';
@@ -197,6 +195,19 @@ function switchAuth(view){
   }
 }
 
+// QA t29: mensagens do login/cadastro em português
+function traduzErroAuth(msg){
+  const m=String(msg||'');
+  if(/Invalid login credentials/i.test(m)) return 'E-mail ou senha incorretos.';
+  if(/at least 6 characters/i.test(m)) return 'A senha precisa ter pelo menos 6 caracteres.';
+  if(/already registered|already been registered|User already exists/i.test(m)) return 'Este e-mail já tem conta. Use "Entrar".';
+  if(/invalid format|validate email|invalid email/i.test(m)) return 'E-mail inválido. Confira o endereço digitado.';
+  if(/Email not confirmed/i.test(m)) return 'Confirme seu e-mail antes de entrar.';
+  if(/rate limit|too many/i.test(m)) return 'Muitas tentativas seguidas. Aguarde um minuto e tente de novo.';
+  if(/fetch|network/i.test(m)) return 'Sem conexão com o servidor. Verifique sua internet e tente de novo.';
+  return m || 'Não foi possível concluir. Tente de novo.';
+}
+
 async function doLogin() {
   const btn = document.getElementById('btn-login');
   const errEl = document.getElementById('auth-error');
@@ -216,7 +227,7 @@ async function doLogin() {
 
   const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
   if (error) {
-    errEl.textContent = error.message === 'Invalid login credentials' ? 'E-mail ou senha incorretos.' : error.message;
+    errEl.textContent = traduzErroAuth(error.message);
     errEl.style.color = 'var(--red)'; errEl.style.display = 'block';
     btn.disabled = false; btn.textContent = 'Entrar';
   }
@@ -235,13 +246,18 @@ async function doRegister() {
     errEl.textContent = 'Preencha e-mail e senha.';
     btn.disabled = false; btn.textContent = 'Criar Conta Gratuita'; return;
   }
-  const { error } = await supabaseClient.auth.signUp({ email, password });
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    errEl.style.cssText = 'font-size:12px;margin-bottom:10px;display:block;padding:8px 12px;border-radius:8px;background:rgba(248,113,113,.12);border:1px solid rgba(248,113,113,.3);color:var(--red)';
+    errEl.textContent = 'E-mail inválido. Confira o endereço digitado.';
+    btn.disabled = false; btn.textContent = 'Criar Conta Gratuita'; return;
+  }
+  const { data: regData, error } = await supabaseClient.auth.signUp({ email, password });
   if (error) {
     errEl.style.cssText = 'font-size:12px;margin-bottom:10px;display:block;padding:8px 12px;border-radius:8px;background:rgba(248,113,113,.12);border:1px solid rgba(248,113,113,.3);color:var(--red)';
-    errEl.textContent = error.message;
+    errEl.textContent = traduzErroAuth(error.message);
   } else {
     errEl.style.cssText = 'font-size:12px;margin-bottom:10px;display:block;padding:8px 12px;border-radius:8px;background:rgba(74,222,128,.1);border:1px solid rgba(74,222,128,.3);color:var(--green)';
-    errEl.textContent = '✅ Conta criada! Verifique seu e-mail para confirmar e depois entre.';
+    errEl.textContent = regData && regData.session ? '✅ Conta criada! Entrando no seu painel...' : '✅ Conta criada! Verifique seu e-mail para confirmar e depois entre.';
     // Volta para login após 2,5s e pré-preenche o email
     setTimeout(()=>{
       const el=document.getElementById('auth-email'); if(el) el.value=email;
@@ -1339,7 +1355,7 @@ async function callAI(messages,system){
   const { data:{ session } } = await supabaseClient.auth.getSession();
   const token = session?.access_token;
   if(!token) throw new Error('Entre novamente na sua conta para usar a IA.');
-  const r=await fetch('https://vizsvjysklidnkzqxltn.supabase.co/functions/v1/openai_chat',{
+  const r=await fetch(SUPABASE_URL+'/functions/v1/openai_chat',{
     method:'POST',
     headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},
     body:JSON.stringify({model:'gpt-4o-mini',max_tokens:1000,messages:[{role:'system',content:system},...messages]})
@@ -1604,4 +1620,11 @@ window.addEventListener('beforeunload', () => {
     clearTimeout(syncTimer);
     pushToSupabase();
   }
+});
+
+// QA t29: tecla Esc fecha a janela aberta (modal)
+document.addEventListener('keydown', function(e){
+  if(e.key!=='Escape') return;
+  const m=document.getElementById('mov');
+  if(m && m.style.display && m.style.display!=='none') cm();
 });
