@@ -10,7 +10,7 @@ const LV=`PRINCÍPIOS DE FINANÇAS PESSOAIS:\n3 PILARES: Gastar Bem, Investir Me
 // ═══════ STATE ═══════
 let ST={
   balance:0,transactions:[],bills:[],debts:[],
-  shoppingList:[],investments:[],aiChat:[],invChat:[],
+  shoppingList:[],investments:[],aiChat:[],invChat:[],goals:[],
   budgetLimits:{},streak:0,lastNoSpurfluous:null,
   balanceHistory:[],theme:'dark'
 };
@@ -23,6 +23,7 @@ let txPage=0,txPerPage=15,txFilterMonth='',txFilterCat='',txFilterType='',txSear
 
 // ═══════ SUPABASE INITIALIZATION ═══════
 import { supabaseClient, SUPABASE_URL } from './src/supabaseClient.js';
+import { parseLancamento, lerExtrato, ehDuplicada, comparativoMensal, alertaOrcamento } from './src/t42_features.mjs';
 let currentUser = null;
 let currentPlan = 'essential';
 let subscriptionStatus = 'inactive';
@@ -136,7 +137,7 @@ async function flushQueue(){
 function showToast(msg, color='var(--green)'){
   let t=document.getElementById('rico-toast');
   if(!t){t=document.createElement('div');t.id='rico-toast';t.style.cssText='position:fixed;top:calc(env(safe-area-inset-top,0px)+12px);left:50%;transform:translateX(-50%);padding:8px 16px;border-radius:20px;font-size:12px;font-weight:700;z-index:999;pointer-events:none;transition:opacity .4s';document.body.appendChild(t);}
-  t.textContent=msg;t.style.background=color==='var(--green)'?'rgba(74,222,128,.9)':'rgba(248,113,113,.9)';t.style.color='#06060f';t.style.opacity='1';
+  t.textContent=msg;t.style.background=color==='var(--green)'?'rgba(74,222,128,.9)':color==='var(--yellow)'?'rgba(250,204,21,.92)':'rgba(248,113,113,.9)';t.style.color='#06060f';t.style.opacity='1';
   clearTimeout(t._to);t._to=setTimeout(()=>t.style.opacity='0',2500);
 }
 
@@ -347,6 +348,7 @@ async function loadData(){
     ST.lastNoSpurfluous = p.data.last_no_spurfluous;
     ST.theme = p.data.theme || 'dark';
     ST.budgetLimits = p.data.budget_limits || {};
+    ST.goals = p.data.goals || [];
   }
   currentPlan = sub.data?.plan_key || 'essential';
   subscriptionStatus = sub.data?.status || 'inactive';
@@ -380,6 +382,7 @@ async function ld(){
         ST.shoppingList         = d.cache.shoppingList     ?? [];
         ST.investments          = d.cache.investments      ?? [];
         ST.budgetLimits         = d.cache.budgetLimits     ?? {};
+        ST.goals                = d.cache.goals            ?? [];
         ST.streak               = d.cache.streak           ?? 0;
         ST.lastNoSpurfluous     = d.cache.lastNoSpurfluous ?? null;
         ST.balanceHistory       = d.cache.balanceHistory   ?? [];
@@ -457,7 +460,7 @@ async function ld(){
     currentUser  = null;
     accessInfo   = null;
     ST = {balance:0,transactions:[],bills:[],debts:[],
-          shoppingList:[],investments:[],aiChat:[],invChat:[],
+          shoppingList:[],investments:[],aiChat:[],invChat:[],goals:[],
           budgetLimits:{},streak:0,lastNoSpurfluous:null,
           balanceHistory:[],theme:'dark'};
     try{ localStorage.removeItem(KEY); }catch(e){}
@@ -514,14 +517,15 @@ function saveProfile(){
     streak: ST.streak,
     last_no_spurfluous: ST.lastNoSpurfluous,
     theme: ST.theme,
-    budget_limits: ST.budgetLimits
+    budget_limits: ST.budgetLimits,
+    goals: ST.goals
   }, 'id');
 }
 
 async function pushToSupabase() {
   if (!currentUser) return;
   // profiles usa id (PK) como conflict — funciona direto
-  const {error:pe} = await supabaseClient.from('profiles').upsert({id: currentUser.id, balance: ST.balance, streak: ST.streak, last_no_spurfluous: ST.lastNoSpurfluous, theme: ST.theme, budget_limits: ST.budgetLimits});
+  const {error:pe} = await supabaseClient.from('profiles').upsert({id: currentUser.id, balance: ST.balance, streak: ST.streak, last_no_spurfluous: ST.lastNoSpurfluous, theme: ST.theme, budget_limits: ST.budgetLimits, goals: ST.goals});
   if(pe) console.error('[sync] profiles:', pe.message);
 
   // Todas as demais tabelas usam created_id UNIQUE como conflict target
@@ -559,6 +563,7 @@ function sv_(){
         shoppingList: ST.shoppingList,
         investments: ST.investments,
         budgetLimits: ST.budgetLimits,
+        goals: ST.goals,
         streak: ST.streak,
         lastNoSpurfluous: ST.lastNoSpurfluous,
         balanceHistory: ST.balanceHistory,
@@ -568,7 +573,7 @@ function sv_(){
   }catch(e){}
   if(!isOnline){
     if(currentUser){
-      queueOp({type:'upsert',table:'profiles',data:{id:currentUser.id,balance:ST.balance,streak:ST.streak,last_no_spurfluous:ST.lastNoSpurfluous,theme:ST.theme,budget_limits:ST.budgetLimits}});
+      queueOp({type:'upsert',table:'profiles',data:{id:currentUser.id,balance:ST.balance,streak:ST.streak,last_no_spurfluous:ST.lastNoSpurfluous,theme:ST.theme,budget_limits:ST.budgetLimits,goals:ST.goals}});
     }
     return;
   }
@@ -583,6 +588,36 @@ const fP=v=>`${(v||0).toFixed(1)}%`;
 const nm=()=>{const n=new Date();return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}`;};
 const gc=(arr,id)=>arr.find(c=>c.id===id)||arr[arr.length-1];
 const es=s=>String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+
+function calcPossoGastar(st, hoje = new Date()) {
+  const curM = nm();
+  const todayStr = new Date(hoje).toISOString().split('T')[0];
+
+  const billsSum = (st.bills || [])
+    .filter(b => b.month === curM && !b.paid)
+    .reduce((acc, b) => acc + (Number(b.amount) || 0), 0);
+
+  const debtsSum = (st.debts || [])
+    .filter(d => !d.paid && d.dueDate && String(d.dueDate).slice(0, 7) === curM)
+    .reduce((acc, d) => acc + (Number(d.amount) || 0), 0);
+
+  const saldoPrevisto = (Number(st.balance) || 0) - billsSum - debtsSum;
+
+  const now = new Date(hoje);
+  const year = now.getFullYear();
+  const month = now.getMonth();
+  const lastDay = new Date(year, month + 1, 0).getDate();
+  const todayDate = now.getDate();
+  const diasRestantes = Math.max(1, lastDay - todayDate + 1);
+
+  const limiteDiario = Math.max(0, saldoPrevisto / diasRestantes);
+
+  const gastoHoje = (st.transactions || [])
+    .filter(t => t.type === 'expense' && t.date && t.date.startsWith(todayStr))
+    .reduce((acc, t) => acc + (Number(t.amount) || 0), 0);
+
+  return { saldoPrevisto, diasRestantes, limiteDiario, gastoHoje };
+}
 
 // ═══════ THEME ═══════
 function toggleTheme(){
@@ -796,6 +831,91 @@ function rDash(){
     </div>
   </div>`;
 
+  const posso = calcPossoGastar(ST, new Date());
+  const pPct = posso.limiteDiario > 0 ? Math.min((posso.gastoHoje / posso.limiteDiario) * 100, 100) : (posso.gastoHoje > 0 ? 100 : 0);
+  const pColor = posso.gastoHoje <= posso.limiteDiario ? 'var(--green)' : posso.gastoHoje <= posso.limiteDiario * 1.2 ? 'var(--yellow)' : 'var(--red)';
+  const possoGastarCard = `<div class="card" style="border-color:${posso.saldoPrevisto<0?'rgba(248,113,113,0.5)':'rgba(74,222,128,0.3)'}">
+    <div class="rb"><span class="sl">Posso gastar hoje?</span><span class="ti">${posso.diasRestantes} dias restantes</span></div>
+    <p style="font-size:18px;font-weight:800;margin:4px 0 8px;color:${posso.limiteDiario>0?'var(--text)':'var(--red)'}">Você pode gastar <span style="color:var(--green)">${fB(posso.limiteDiario)}</span> por dia</p>
+    <div class="rw" style="justify-content:space-between;font-size:12px;margin-bottom:6px">
+      <span class="mu">Gasto hoje: <strong class="mo" style="color:${pColor}">${fB(posso.gastoHoje)}</strong></span>
+      <span class="mu">Saldo previsto: <strong class="mo" style="color:${posso.saldoPrevisto>=0?'var(--green)':'var(--red)'}">${fB(posso.saldoPrevisto)}</strong></span>
+    </div>
+    <div class="tr"><div class="tf" style="width:${pPct}%;background:${pColor}"></div></div>
+    ${posso.saldoPrevisto < 0 ? `<div style="background:rgba(248,113,113,0.12);border:1px solid rgba(248,113,113,0.3);border-radius:8px;padding:8px;margin-top:8px;font-size:11px;color:var(--red)">⚠️ Atenção: suas contas do mês passam do seu saldo em <strong>${fB(Math.abs(posso.saldoPrevisto))}</strong></div>` : ''}
+  </div>`;
+
+  let goalsHTML='';
+  if(ST.goals.length===0){
+    goalsHTML=`<div class="card" style="border-style:dashed;opacity:.6">
+      <div class="rb"><p class="sl">Minhas Metas</p><button class="gb" onclick="om('goal')">+ Nova meta</button></div>
+      <p class="mu" style="font-size:11px">Crie caixinhas de objetivos para planejar suas conquistas</p>
+    </div>`;
+  } else {
+    const goalRows=ST.goals.map(g=>{
+      const pct=Math.min((g.saved/g.target)*100,100);
+      const falta=Math.max(g.target-g.saved,0);
+      let deadlineHTML='';
+      if(g.deadline){
+        const now=new Date();
+        const dLine=new Date(g.deadline+'T00:00:00');
+        const diffMonths=(dLine.getFullYear()-now.getFullYear())*12+(dLine.getMonth()-now.getMonth());
+        const monthsRem=Math.max(1,diffMonths);
+        const guardeMes=falta/monthsRem;
+        deadlineHTML=`<span class="ti" style="display:block;margin-top:4px;color:var(--muted2)">📅 ${new Date(g.deadline+'T00:00:00').toLocaleDateString('pt-BR')} · Guarde <strong>${fB(guardeMes)}</strong>/mês (${monthsRem}m)</span>`;
+      }
+      return `<div class="card" style="margin-bottom:8px">
+        <div class="rb">
+          <div class="rw" style="gap:8px">
+            <span style="font-size:20px">${es(g.emoji)}</span>
+            <div>
+              <p style="font-size:13px;font-weight:700">${es(g.name)}</p>
+              <span class="ti">${fB(g.saved)} de ${fB(g.target)} · Faltam <strong style="color:var(--green)">${fB(falta)}</strong></span>
+            </div>
+          </div>
+          <div class="ac">
+            <button class="ib" style="color:var(--green);font-size:12px" onclick="om('goaldep',${g.id})" title="Guardar dinheiro">💰 Guardar</button>
+            <button class="ib" style="color:var(--red)" onclick="delGoal(${g.id})" title="Excluir meta">✕</button>
+          </div>
+        </div>
+        <div class="budget-bar" style="margin-top:8px"><div class="budget-fill" style="width:${pct}%;background:var(--green)"></div></div>
+        ${deadlineHTML}
+      </div>`;
+    }).join('');
+    goalsHTML=`<div class="card"><div class="rb"><p class="sl">Minhas Metas</p><button class="gb" onclick="om('goal')">+ Nova meta</button></div>${goalRows}</div>`;
+  }
+
+  const quickTxCard = `<div class="card" style="border-color:rgba(74,222,128,0.3)">
+    <p class="sl">⚡ Lançamento rápido</p>
+    <div class="rw" style="gap:8px;margin-top:8px">
+      <input class="ip" id="qtx" placeholder="Ex.: gastei 32,50 no ifood ontem" oninput="updateQtxPrev()" onkeydown="if(event.key==='Enter')quickTx()" style="margin-bottom:0;flex:1"/>
+      <button class="pb" onclick="quickTx()">Lançar</button>
+    </div>
+    <div id="qtxp" style="margin-top:6px;min-height:16px"></div>
+  </div>`;
+
+  const compData = comparativoMensal(ST.transactions, nm());
+  let compCardHTML = '';
+  if(compData.length > 0){
+    const rows = compData.map(item => {
+      const cat = gc(TXC, item.cat);
+      const varHtml = item.variacao > 0 ? `<span style="color:var(--red);font-size:11px;font-weight:700">↑ ${item.variacao}%</span>` :
+                      item.variacao < 0 ? `<span style="color:var(--green);font-size:11px;font-weight:700">↓ ${Math.abs(item.variacao)}%</span>` :
+                      `<span style="color:var(--muted);font-size:11px">novo</span>`;
+      return `<div class="rw" style="justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border)">
+        <div class="rw" style="gap:8px;align-items:center">
+          <span style="font-size:16px">${cat.emoji}</span>
+          <div><span style="font-size:12px;font-weight:600">${cat.label}</span><span class="ti" style="display:block;font-size:10px;color:var(--muted)">anterior: ${fB(item.antes)}</span></div>
+        </div>
+        <div style="text-align:right">
+          <span class="mo" style="font-size:13px;font-weight:700">${fB(item.valor)}</span>
+          <div style="margin-top:2px">${varHtml}</div>
+        </div>
+      </div>`;
+    }).join('');
+    compCardHTML = `<div class="card"><p class="sl">📊 Comparado ao mês passado</p>${rows}</div>`;
+  }
+
   return `${welcomeHTML}
   ${netWorthCard}
   <div class="card" style="animation:glow 3s infinite">
@@ -809,6 +929,10 @@ function rDash(){
     <div class="sc" style="border-color:rgba(250,204,21,.3)"><span>📋</span><span class="mo" style="font-size:14px;font-weight:700;color:var(--yellow)">${fB(bS)}</span><span class="ti">Contas/mês</span><span class="ti" style="color:var(--muted2)">${bP}/${cB.length} pagas</span></div>
     <div class="sc" style="border-color:rgba(167,139,250,.3)"><span>📈</span><span class="mo" style="font-size:14px;font-weight:700;color:var(--purple)">${fB(tInv)}</span><span class="ti">Investido</span><span class="ti" style="color:var(--muted2)">🛡️ ${fB(res)}</span></div>
   </div>
+  ${quickTxCard}
+  ${possoGastarCard}
+  ${goalsHTML}
+  ${compCardHTML}
   ${alHTML}${streakHTML}${chartHTML}${donutHTML}${budgetHTML}
   <div class="card">
     <div class="rb"><span class="sl">Transações recentes</span>
@@ -864,6 +988,7 @@ function rHistory(){
     <div class="rb" style="margin-bottom:10px">
       <p class="sl" style="margin:0">Todas as Transações</p>
       <div class="rw" style="gap:6px">
+        <button class="export-btn" onclick="om('import')">📥 Importar extrato</button>
         <button class="export-btn" onclick="exportCSV()">📥 CSV</button>
         <button class="export-btn" onclick="exportPDF()" style="background:rgba(248,113,113,.15);color:var(--red)">📄 PDF</button>
         <button class="gb" onclick="om('tx')">+ Nova</button>
@@ -1082,7 +1207,7 @@ function sai(s){const e=document.getElementById('aii');if(e)e.value=s;}
 function sii(s){const e=document.getElementById('iai');if(e)e.value=s;}
 
 // ═══════ MODALS ═══════
-function om(type){
+function om(type, arg){
   if(accessBlocked()){ render(); return; }
   const mc=document.getElementById('mc');
   if(type==='tx')mc.innerHTML=mTx();
@@ -1091,10 +1216,72 @@ function om(type){
   else if(type==='shop')mc.innerHTML=mShop();
   else if(type==='inv')mc.innerHTML=mInv();
   else if(type==='budget')mc.innerHTML=mBudget();
+  else if(type==='goal')mc.innerHTML=mGoal();
+  else if(type==='goaldep')mc.innerHTML=mGoalDep(arg);
+  else if(type==='import')mc.innerHTML=mImport();
   document.getElementById('mov').style.display='flex';
   setTimeout(()=>{const f=document.querySelector('.sh input');if(f)f.focus();},100);
 }
 function cm(){document.getElementById('mov').style.display='none';}
+
+function mGoal(){
+  return `<p class="mt">🎯 Nova Meta / Caixinha</p>
+  <p class="lb">Emoji</p><input class="ip" id="ge" value="🎯" maxlength="2"/>
+  <p class="lb">Nome do objetivo</p><input class="ip" id="gn" placeholder="Viagem, Carro Novo, Reserva..."/>
+  <p class="lb">Valor alvo (R$)</p><input class="ip" type="number" id="gt" placeholder="5000,00" inputmode="decimal"/>
+  <p class="lb">Já guardado (R$)</p><input class="ip" type="number" id="gs" placeholder="0,00" inputmode="decimal"/>
+  <p class="lb">Prazo (opcional)</p><input class="ip" type="date" id="gd"/>
+  <button class="sb" onclick="sgoal()">✅ Criar Meta</button><button class="cb" onclick="cm()">Cancelar</button>`;
+}
+
+function sgoal(){
+  const emoji=document.getElementById('ge').value.trim()||'🎯';
+  const name=document.getElementById('gn').value.trim();
+  const target=parseFloat(document.getElementById('gt').value.replace(',','.'));
+  const saved=parseFloat(document.getElementById('gs').value.replace(',','.')||'0');
+  const deadline=document.getElementById('gd').value||'';
+  if(!name||!target)return;
+  const newGoal={id:Date.now(),emoji,name,target,saved,deadline};
+  ST.goals.push(newGoal);
+  saveProfile();
+  sv_();cm();render();
+}
+
+function mGoalDep(goalId){
+  const g=ST.goals.find(x=>x.id===goalId);
+  if(!g)return '';
+  return `<p class="mt">💰 Guardar em: ${es(g.emoji)} ${es(g.name)}</p>
+  <div class="tb" style="margin-bottom:14px">Faltam <strong>${fB(Math.max(g.target-g.saved,0))}</strong> para atingir a meta.</div>
+  <p class="lb">Valor a guardar (R$)</p><input class="ip" type="number" id="gda" placeholder="0,00" inputmode="decimal"/>
+  <div class="rw" style="margin-bottom:14px"><input type="checkbox" id="gdd" checked style="margin-right:8px"/><label for="gdd" style="font-size:12px;color:var(--muted)">Descontar do saldo atual e registrar gasto</label></div>
+  <button class="sb" onclick="sgoaldep(${goalId})">✅ Guardar</button><button class="cb" onclick="cm()">Cancelar</button>`;
+}
+
+function sgoaldep(goalId){
+  const g=ST.goals.find(x=>x.id===goalId);
+  if(!g)return;
+  const val=parseFloat(document.getElementById('gda').value.replace(',','.'));
+  if(!val||val<=0)return;
+  const discount=document.getElementById('gdd')?.checked||false;
+  if(discount){
+    ST.balance-=val;
+    const newTx={id:Date.now(),type:'expense',amount:val,desc:`Meta: ${g.name}`,category:'outros',date:new Date().toISOString(),recurring:false,recurringFrom:null};
+    ST.transactions.unshift(newTx);
+    recordBalance();
+    saveRow('transactions',{user_id:currentUser?.id,created_id:String(newTx.id),type:'expense',amount:val,description:newTx.desc,category:'outros',date:newTx.date,recurring:false,recurring_from:null});
+  }
+  g.saved+=val;
+  saveProfile();
+  sv_();cm();render();
+}
+
+function delGoal(id){
+  if(confirm('Excluir esta meta?')){
+    ST.goals=ST.goals.filter(g=>g.id!==id);
+    saveProfile();
+    sv_();render();
+  }
+}
 
 function mTx(){return `<p class="mt">Nova Transação</p>
   <div class="tt"><button class="tb2 exp" id="be" onclick="stt('expense')">💸 Gasto</button><button class="tb2" id="bi" onclick="stt('income')">💰 Entrada</button></div>
@@ -1112,6 +1299,150 @@ function stt(t){
   document.getElementById('tcw').style.display=t==='expense'?'block':'none';
 }
 
+let _txSeq=0;
+function addTx({type, amount, desc, category, date, recurring=false, recurringFrom=null}, opts={}){
+  // id inteiro único (ms*1000 + sequência) — evita colisão em importações em lote
+  const newTx={id:Date.now()*1000+(_txSeq++%1000), type, amount, desc, category, date: date || new Date().toISOString(), recurring, recurringFrom};
+  ST.transactions.unshift(newTx);
+  ST.balance += type==='income' ? amount : -amount;
+  recordBalance();
+  saveRow('transactions',{user_id:currentUser?.id, created_id:String(newTx.id), type, amount, description:desc, category, date:newTx.date, recurring, recurring_from:recurringFrom});
+  saveProfile();
+
+  let alerta = null;
+  if(type==='expense' && !opts.semAlerta){
+    alerta = alertaOrcamento(ST.transactions, ST.budgetLimits, category, nm());
+    if(alerta){
+      const catLabel = gc(TXC, category).label;
+      if(alerta.nivel === 'estourou'){
+        showToast(`🚨 Limite de ${catLabel} estourado (${alerta.pct}%)`, 'var(--red)');
+      } else if(alerta.nivel === 'aviso'){
+        showToast(`⚠️ Você já usou ${alerta.pct}% do limite de ${catLabel}`, 'var(--yellow)');
+      }
+    }
+  }
+  return alerta;
+}
+
+function updateQtxPrev(){
+  const el = document.getElementById('qtx');
+  const prev = document.getElementById('qtxp');
+  if(!el || !prev) return;
+  const text = el.value;
+  if(!text.trim()){ prev.innerHTML = ''; return; }
+  const p = parseLancamento(text);
+  if(!p){
+    prev.innerHTML = '<span style="color:var(--red);font-size:11px">Não entendi o valor</span>';
+    return;
+  }
+  const cat = gc(TXC, p.category);
+  const typeLbl = p.type==='income'?'Receita':'Despesa';
+  prev.innerHTML = `<span style="color:var(--green);font-size:11px">${typeLbl} · ${fB(p.amount)} · ${cat.emoji} ${cat.label} · ${fD(p.date)}</span>`;
+}
+
+function quickTx(){
+  const inp = document.getElementById('qtx');
+  if(!inp) return;
+  const p = parseLancamento(inp.value);
+  if(!p){
+    showToast('Não entendi o valor', 'var(--red)');
+    return;
+  }
+  const alerta = addTx({
+    type: p.type,
+    amount: p.amount,
+    desc: p.desc,
+    category: p.category,
+    date: p.date
+  });
+  inp.value = '';
+  const prev = document.getElementById('qtxp');
+  if(prev) prev.innerHTML = '';
+  if(!alerta) showToast('Lançado!'); // não sobrescreve o alerta de orçamento
+  sv_();
+  render();
+}
+
+let impLinhas = [];
+
+function mImport(){
+  impLinhas = [];
+  return `<p class="mt">📥 Importar Extrato (OFX ou CSV)</p>
+  <p class="mu" style="font-size:12px;margin-bottom:10px">Selecione o arquivo OFX ou CSV exportado do seu banco (Nubank, Itaú, etc.).</p>
+  <input type="file" id="impf" accept=".csv,.ofx,.txt" onchange="impLer(this)" class="ip" style="margin-bottom:12px"/>
+  <div id="impp"></div>
+  <button class="cb" onclick="cm()">Fechar</button>`;
+}
+
+function impLer(input){
+  const file = input.files?.[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = function(e){
+    const text = e.target.result;
+    impLinhas = lerExtrato(text, file.name);
+    renderImportPreview();
+  };
+  reader.readAsText(file);
+}
+
+function renderImportPreview(){
+  const container = document.getElementById('impp');
+  if(!container) return;
+  if(!impLinhas.length){
+    container.innerHTML = '<p class="mu" style="font-size:12px;text-align:center;padding:10px">Nenhum lançamento encontrado no arquivo.</p>';
+    return;
+  }
+  const visivel = impLinhas.slice(0, 200);
+  const rows = visivel.map((l, i) => {
+    const duplicada = ehDuplicada(l, ST.transactions);
+    const checked = !duplicada ? 'checked' : '';
+    const cat = gc(TXC, l.category);
+    const col = l.type === 'income' ? 'var(--green)' : 'var(--red)';
+    const sign = l.type === 'income' ? '+' : '-';
+    return `<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--border);font-size:11px">
+      <input type="checkbox" id="imp_${i}" ${checked} style="flex-shrink:0"/>
+      <span style="color:var(--muted);width:45px;flex-shrink:0">${l.dia.slice(5).split('-').reverse().join('/')}</span>
+      <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${es(l.desc)}">${es(l.desc)}</span>
+      <span style="flex-shrink:0">${cat.emoji} ${cat.label}</span>
+      <span style="font-weight:700;color:${col};flex-shrink:0">${sign}${fB(l.amount)}</span>
+      ${duplicada ? '<span style="color:var(--yellow);font-size:9px;flex-shrink:0" title="Já existe lançamento idêntico">possível duplicada</span>' : ''}
+    </div>`;
+  }).join('');
+
+  container.innerHTML = `
+    <p class="sl" style="margin-bottom:6px">Prévia (${impLinhas.length} lançamento${impLinhas.length===1?'':'s'}${impLinhas.length>200?', exibindo primeiros 200':''}):</p>
+    <div style="max-height:220px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;padding:8px;margin-bottom:12px;background:var(--bg)">
+      ${rows}
+    </div>
+    <button class="sb" onclick="impConfirmar()">📥 Importar selecionados</button>
+  `;
+}
+
+function impConfirmar(){
+  let count = 0;
+  impLinhas.forEach((l, i) => {
+    const chk = document.getElementById(`imp_${i}`);
+    // linhas além das 200 exibidas: importa se não for duplicada
+    const marcado = chk ? chk.checked : !ehDuplicada(l, ST.transactions);
+    if(marcado){
+      addTx({
+        type: l.type,
+        amount: l.amount,
+        desc: l.desc,
+        category: l.category,
+        date: l.dia + 'T12:00:00'
+      }, {semAlerta:true});
+      count++;
+    }
+  });
+  if(!count){ showToast('Nenhum lançamento selecionado', 'var(--yellow)'); return; }
+  sv_();
+  cm();
+  render();
+  showToast(`${count} lançamento${count===1?'':'s'} importado${count===1?'':'s'}!`);
+}
+
 function stx(){
   const type=document.getElementById('tt').value;
   const amount=parseFloat(document.getElementById('ta').value.replace(',','.'));
@@ -1119,12 +1450,7 @@ function stx(){
   if(!amount||!desc)return;
   const category=type==='expense'?document.getElementById('tc').value:'outros';
   const recurring=document.getElementById('trec')?.checked||false;
-  const newTx={id:Date.now(),type,amount,desc,category,date:new Date().toISOString(),recurring,recurringFrom:null};
-  ST.transactions.unshift(newTx);
-  ST.balance+=type==='income'?amount:-amount;
-  recordBalance();
-  saveRow('transactions',{user_id:currentUser?.id,created_id:String(newTx.id),type,amount,description:desc,category,date:newTx.date,recurring,recurring_from:null});
-  saveProfile();
+  addTx({type, amount, desc, category, date:new Date().toISOString(), recurring});
   sv_();cm();render();
 }
 
@@ -1599,6 +1925,7 @@ function setComp(field, v)  {
 }
 
 Object.assign(window, {
+  sgoal, sgoaldep, delGoal,
   // Auth
   doLogin, doLogout, doRegister, openAuth, openPricing, startCheckout,
   // UI
@@ -1630,7 +1957,9 @@ Object.assign(window, {
   clearTxFilters, setTxPage, setTxSearch, setComp,
   copyPrevBills,
   // Auth
-  switchAuth
+  switchAuth,
+  // T42 features
+  quickTx, updateQtxPrev, impLer, impConfirmar
 });
 
 // ═══════ INIT ═══════
