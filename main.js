@@ -10,7 +10,7 @@ const LV=`PRINCÍPIOS DE FINANÇAS PESSOAIS:\n3 PILARES: Gastar Bem, Investir Me
 // ═══════ STATE ═══════
 let ST={
   balance:0,transactions:[],bills:[],debts:[],
-  shoppingList:[],investments:[],aiChat:[],invChat:[],
+  shoppingList:[],investments:[],aiChat:[],invChat:[],goals:[],
   budgetLimits:{},streak:0,lastNoSpurfluous:null,
   balanceHistory:[],theme:'dark'
 };
@@ -347,6 +347,7 @@ async function loadData(){
     ST.lastNoSpurfluous = p.data.last_no_spurfluous;
     ST.theme = p.data.theme || 'dark';
     ST.budgetLimits = p.data.budget_limits || {};
+    ST.goals = p.data.goals || [];
   }
   currentPlan = sub.data?.plan_key || 'essential';
   subscriptionStatus = sub.data?.status || 'inactive';
@@ -380,6 +381,7 @@ async function ld(){
         ST.shoppingList         = d.cache.shoppingList     ?? [];
         ST.investments          = d.cache.investments      ?? [];
         ST.budgetLimits         = d.cache.budgetLimits     ?? {};
+        ST.goals                = d.cache.goals            ?? [];
         ST.streak               = d.cache.streak           ?? 0;
         ST.lastNoSpurfluous     = d.cache.lastNoSpurfluous ?? null;
         ST.balanceHistory       = d.cache.balanceHistory   ?? [];
@@ -457,7 +459,7 @@ async function ld(){
     currentUser  = null;
     accessInfo   = null;
     ST = {balance:0,transactions:[],bills:[],debts:[],
-          shoppingList:[],investments:[],aiChat:[],invChat:[],
+          shoppingList:[],investments:[],aiChat:[],invChat:[],goals:[],
           budgetLimits:{},streak:0,lastNoSpurfluous:null,
           balanceHistory:[],theme:'dark'};
     try{ localStorage.removeItem(KEY); }catch(e){}
@@ -514,14 +516,15 @@ function saveProfile(){
     streak: ST.streak,
     last_no_spurfluous: ST.lastNoSpurfluous,
     theme: ST.theme,
-    budget_limits: ST.budgetLimits
+    budget_limits: ST.budgetLimits,
+    goals: ST.goals
   }, 'id');
 }
 
 async function pushToSupabase() {
   if (!currentUser) return;
   // profiles usa id (PK) como conflict — funciona direto
-  const {error:pe} = await supabaseClient.from('profiles').upsert({id: currentUser.id, balance: ST.balance, streak: ST.streak, last_no_spurfluous: ST.lastNoSpurfluous, theme: ST.theme, budget_limits: ST.budgetLimits});
+  const {error:pe} = await supabaseClient.from('profiles').upsert({id: currentUser.id, balance: ST.balance, streak: ST.streak, last_no_spurfluous: ST.lastNoSpurfluous, theme: ST.theme, budget_limits: ST.budgetLimits, goals: ST.goals});
   if(pe) console.error('[sync] profiles:', pe.message);
 
   // Todas as demais tabelas usam created_id UNIQUE como conflict target
@@ -559,6 +562,7 @@ function sv_(){
         shoppingList: ST.shoppingList,
         investments: ST.investments,
         budgetLimits: ST.budgetLimits,
+        goals: ST.goals,
         streak: ST.streak,
         lastNoSpurfluous: ST.lastNoSpurfluous,
         balanceHistory: ST.balanceHistory,
@@ -568,7 +572,7 @@ function sv_(){
   }catch(e){}
   if(!isOnline){
     if(currentUser){
-      queueOp({type:'upsert',table:'profiles',data:{id:currentUser.id,balance:ST.balance,streak:ST.streak,last_no_spurfluous:ST.lastNoSpurfluous,theme:ST.theme,budget_limits:ST.budgetLimits}});
+      queueOp({type:'upsert',table:'profiles',data:{id:currentUser.id,balance:ST.balance,streak:ST.streak,last_no_spurfluous:ST.lastNoSpurfluous,theme:ST.theme,budget_limits:ST.budgetLimits,goals:ST.goals}});
     }
     return;
   }
@@ -583,6 +587,36 @@ const fP=v=>`${(v||0).toFixed(1)}%`;
 const nm=()=>{const n=new Date();return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}`;};
 const gc=(arr,id)=>arr.find(c=>c.id===id)||arr[arr.length-1];
 const es=s=>String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+
+function calcPossoGastar(st, hoje = new Date()) {
+  const curM = nm();
+  const todayStr = new Date(hoje).toISOString().split('T')[0];
+
+  const billsSum = (st.bills || [])
+    .filter(b => b.month === curM && !b.paid)
+    .reduce((acc, b) => acc + (Number(b.amount) || 0), 0);
+
+  const debtsSum = (st.debts || [])
+    .filter(d => !d.paid && d.dueDate && String(d.dueDate).slice(0, 7) === curM)
+    .reduce((acc, d) => acc + (Number(d.amount) || 0), 0);
+
+  const saldoPrevisto = (Number(st.balance) || 0) - billsSum - debtsSum;
+
+  const now = new Date(hoje);
+  const year = now.getFullYear();
+  const month = now.getMonth();
+  const lastDay = new Date(year, month + 1, 0).getDate();
+  const todayDate = now.getDate();
+  const diasRestantes = Math.max(1, lastDay - todayDate + 1);
+
+  const limiteDiario = Math.max(0, saldoPrevisto / diasRestantes);
+
+  const gastoHoje = (st.transactions || [])
+    .filter(t => t.type === 'expense' && t.date && t.date.startsWith(todayStr))
+    .reduce((acc, t) => acc + (Number(t.amount) || 0), 0);
+
+  return { saldoPrevisto, diasRestantes, limiteDiario, gastoHoje };
+}
 
 // ═══════ THEME ═══════
 function toggleTheme(){
@@ -796,6 +830,60 @@ function rDash(){
     </div>
   </div>`;
 
+  const posso = calcPossoGastar(ST, new Date());
+  const pPct = posso.limiteDiario > 0 ? Math.min((posso.gastoHoje / posso.limiteDiario) * 100, 100) : (posso.gastoHoje > 0 ? 100 : 0);
+  const pColor = posso.gastoHoje <= posso.limiteDiario ? 'var(--green)' : posso.gastoHoje <= posso.limiteDiario * 1.2 ? 'var(--yellow)' : 'var(--red)';
+  const possoGastarCard = `<div class="card" style="border-color:${posso.saldoPrevisto<0?'rgba(248,113,113,0.5)':'rgba(74,222,128,0.3)'}">
+    <div class="rb"><span class="sl">Posso gastar hoje?</span><span class="ti">${posso.diasRestantes} dias restantes</span></div>
+    <p style="font-size:18px;font-weight:800;margin:4px 0 8px;color:${posso.limiteDiario>0?'var(--text)':'var(--red)'}">Você pode gastar <span style="color:var(--green)">${fB(posso.limiteDiario)}</span> por dia</p>
+    <div class="rw" style="justify-content:space-between;font-size:12px;margin-bottom:6px">
+      <span class="mu">Gasto hoje: <strong class="mo" style="color:${pColor}">${fB(posso.gastoHoje)}</strong></span>
+      <span class="mu">Saldo previsto: <strong class="mo" style="color:${posso.saldoPrevisto>=0?'var(--green)':'var(--red)'}">${fB(posso.saldoPrevisto)}</strong></span>
+    </div>
+    <div class="tr"><div class="tf" style="width:${pPct}%;background:${pColor}"></div></div>
+    ${posso.saldoPrevisto < 0 ? `<div style="background:rgba(248,113,113,0.12);border:1px solid rgba(248,113,113,0.3);border-radius:8px;padding:8px;margin-top:8px;font-size:11px;color:var(--red)">⚠️ Atenção: suas contas do mês passam do seu saldo em <strong>${fB(Math.abs(posso.saldoPrevisto))}</strong></div>` : ''}
+  </div>`;
+
+  let goalsHTML='';
+  if(ST.goals.length===0){
+    goalsHTML=`<div class="card" style="border-style:dashed;opacity:.6">
+      <div class="rb"><p class="sl">Minhas Metas</p><button class="gb" onclick="om('goal')">+ Nova meta</button></div>
+      <p class="mu" style="font-size:11px">Crie caixinhas de objetivos para planejar suas conquistas</p>
+    </div>`;
+  } else {
+    const goalRows=ST.goals.map(g=>{
+      const pct=Math.min((g.saved/g.target)*100,100);
+      const falta=Math.max(g.target-g.saved,0);
+      let deadlineHTML='';
+      if(g.deadline){
+        const now=new Date();
+        const dLine=new Date(g.deadline+'T00:00:00');
+        const diffMonths=(dLine.getFullYear()-now.getFullYear())*12+(dLine.getMonth()-now.getMonth());
+        const monthsRem=Math.max(1,diffMonths);
+        const guardeMes=falta/monthsRem;
+        deadlineHTML=`<span class="ti" style="display:block;margin-top:4px;color:var(--muted2)">📅 ${new Date(g.deadline+'T00:00:00').toLocaleDateString('pt-BR')} · Guarde <strong>${fB(guardeMes)}</strong>/mês (${monthsRem}m)</span>`;
+      }
+      return `<div class="card" style="margin-bottom:8px">
+        <div class="rb">
+          <div class="rw" style="gap:8px">
+            <span style="font-size:20px">${es(g.emoji)}</span>
+            <div>
+              <p style="font-size:13px;font-weight:700">${es(g.name)}</p>
+              <span class="ti">${fB(g.saved)} de ${fB(g.target)} · Faltam <strong style="color:var(--green)">${fB(falta)}</strong></span>
+            </div>
+          </div>
+          <div class="ac">
+            <button class="ib" style="color:var(--green);font-size:12px" onclick="om('goaldep',${g.id})" title="Guardar dinheiro">💰 Guardar</button>
+            <button class="ib" style="color:var(--red)" onclick="delGoal(${g.id})" title="Excluir meta">✕</button>
+          </div>
+        </div>
+        <div class="budget-bar" style="margin-top:8px"><div class="budget-fill" style="width:${pct}%;background:var(--green)"></div></div>
+        ${deadlineHTML}
+      </div>`;
+    }).join('');
+    goalsHTML=`<div class="card"><div class="rb"><p class="sl">Minhas Metas</p><button class="gb" onclick="om('goal')">+ Nova meta</button></div>${goalRows}</div>`;
+  }
+
   return `${welcomeHTML}
   ${netWorthCard}
   <div class="card" style="animation:glow 3s infinite">
@@ -809,6 +897,8 @@ function rDash(){
     <div class="sc" style="border-color:rgba(250,204,21,.3)"><span>📋</span><span class="mo" style="font-size:14px;font-weight:700;color:var(--yellow)">${fB(bS)}</span><span class="ti">Contas/mês</span><span class="ti" style="color:var(--muted2)">${bP}/${cB.length} pagas</span></div>
     <div class="sc" style="border-color:rgba(167,139,250,.3)"><span>📈</span><span class="mo" style="font-size:14px;font-weight:700;color:var(--purple)">${fB(tInv)}</span><span class="ti">Investido</span><span class="ti" style="color:var(--muted2)">🛡️ ${fB(res)}</span></div>
   </div>
+  ${possoGastarCard}
+  ${goalsHTML}
   ${alHTML}${streakHTML}${chartHTML}${donutHTML}${budgetHTML}
   <div class="card">
     <div class="rb"><span class="sl">Transações recentes</span>
@@ -1082,7 +1172,7 @@ function sai(s){const e=document.getElementById('aii');if(e)e.value=s;}
 function sii(s){const e=document.getElementById('iai');if(e)e.value=s;}
 
 // ═══════ MODALS ═══════
-function om(type){
+function om(type, arg){
   if(accessBlocked()){ render(); return; }
   const mc=document.getElementById('mc');
   if(type==='tx')mc.innerHTML=mTx();
@@ -1091,10 +1181,71 @@ function om(type){
   else if(type==='shop')mc.innerHTML=mShop();
   else if(type==='inv')mc.innerHTML=mInv();
   else if(type==='budget')mc.innerHTML=mBudget();
+  else if(type==='goal')mc.innerHTML=mGoal();
+  else if(type==='goaldep')mc.innerHTML=mGoalDep(arg);
   document.getElementById('mov').style.display='flex';
   setTimeout(()=>{const f=document.querySelector('.sh input');if(f)f.focus();},100);
 }
 function cm(){document.getElementById('mov').style.display='none';}
+
+function mGoal(){
+  return `<p class="mt">🎯 Nova Meta / Caixinha</p>
+  <p class="lb">Emoji</p><input class="ip" id="ge" value="🎯" maxlength="2"/>
+  <p class="lb">Nome do objetivo</p><input class="ip" id="gn" placeholder="Viagem, Carro Novo, Reserva..."/>
+  <p class="lb">Valor alvo (R$)</p><input class="ip" type="number" id="gt" placeholder="5000,00" inputmode="decimal"/>
+  <p class="lb">Já guardado (R$)</p><input class="ip" type="number" id="gs" placeholder="0,00" inputmode="decimal"/>
+  <p class="lb">Prazo (opcional)</p><input class="ip" type="date" id="gd"/>
+  <button class="sb" onclick="sgoal()">✅ Criar Meta</button><button class="cb" onclick="cm()">Cancelar</button>`;
+}
+
+function sgoal(){
+  const emoji=document.getElementById('ge').value.trim()||'🎯';
+  const name=document.getElementById('gn').value.trim();
+  const target=parseFloat(document.getElementById('gt').value.replace(',','.'));
+  const saved=parseFloat(document.getElementById('gs').value.replace(',','.')||'0');
+  const deadline=document.getElementById('gd').value||'';
+  if(!name||!target)return;
+  const newGoal={id:Date.now(),emoji,name,target,saved,deadline};
+  ST.goals.push(newGoal);
+  saveProfile();
+  sv_();cm();render();
+}
+
+function mGoalDep(goalId){
+  const g=ST.goals.find(x=>x.id===goalId);
+  if(!g)return '';
+  return `<p class="mt">💰 Guardar em: ${es(g.emoji)} ${es(g.name)}</p>
+  <div class="tb" style="margin-bottom:14px">Faltam <strong>${fB(Math.max(g.target-g.saved,0))}</strong> para atingir a meta.</div>
+  <p class="lb">Valor a guardar (R$)</p><input class="ip" type="number" id="gda" placeholder="0,00" inputmode="decimal"/>
+  <div class="rw" style="margin-bottom:14px"><input type="checkbox" id="gdd" checked style="margin-right:8px"/><label for="gdd" style="font-size:12px;color:var(--muted)">Descontar do saldo atual e registrar gasto</label></div>
+  <button class="sb" onclick="sgoaldep(${goalId})">✅ Guardar</button><button class="cb" onclick="cm()">Cancelar</button>`;
+}
+
+function sgoaldep(goalId){
+  const g=ST.goals.find(x=>x.id===goalId);
+  if(!g)return;
+  const val=parseFloat(document.getElementById('gda').value.replace(',','.'));
+  if(!val||val<=0)return;
+  const discount=document.getElementById('gdd')?.checked||false;
+  if(discount){
+    ST.balance-=val;
+    const newTx={id:Date.now(),type:'expense',amount:val,desc:`Meta: ${g.name}`,category:'outros',date:new Date().toISOString(),recurring:false,recurringFrom:null};
+    ST.transactions.unshift(newTx);
+    recordBalance();
+    saveRow('transactions',{user_id:currentUser?.id,created_id:String(newTx.id),type:'expense',amount:val,description:newTx.desc,category:'outros',date:newTx.date,recurring:false,recurring_from:null});
+  }
+  g.saved+=val;
+  saveProfile();
+  sv_();cm();render();
+}
+
+function delGoal(id){
+  if(confirm('Excluir esta meta?')){
+    ST.goals=ST.goals.filter(g=>g.id!==id);
+    saveProfile();
+    sv_();render();
+  }
+}
 
 function mTx(){return `<p class="mt">Nova Transação</p>
   <div class="tt"><button class="tb2 exp" id="be" onclick="stt('expense')">💸 Gasto</button><button class="tb2" id="bi" onclick="stt('income')">💰 Entrada</button></div>
@@ -1599,6 +1750,7 @@ function setComp(field, v)  {
 }
 
 Object.assign(window, {
+  sgoal, sgoaldep, delGoal,
   // Auth
   doLogin, doLogout, doRegister, openAuth, openPricing, startCheckout,
   // UI
