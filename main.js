@@ -1309,8 +1309,9 @@ function addTx({type, amount, desc, category, date, recurring=false, recurringFr
   saveRow('transactions',{user_id:currentUser?.id, created_id:String(newTx.id), type, amount, description:desc, category, date:newTx.date, recurring, recurring_from:recurringFrom});
   saveProfile();
 
+  let alerta = null;
   if(type==='expense' && !opts.semAlerta){
-    const alerta = alertaOrcamento(ST.transactions, ST.budgetLimits, category, nm());
+    alerta = alertaOrcamento(ST.transactions, ST.budgetLimits, category, nm());
     if(alerta){
       const catLabel = gc(TXC, category).label;
       if(alerta.nivel === 'estourou'){
@@ -1320,6 +1321,7 @@ function addTx({type, amount, desc, category, date, recurring=false, recurringFr
       }
     }
   }
+  return alerta;
 }
 
 function updateQtxPrev(){
@@ -1346,7 +1348,7 @@ function quickTx(){
     showToast('Não entendi o valor', 'var(--red)');
     return;
   }
-  addTx({
+  const alerta = addTx({
     type: p.type,
     amount: p.amount,
     desc: p.desc,
@@ -1356,7 +1358,7 @@ function quickTx(){
   inp.value = '';
   const prev = document.getElementById('qtxp');
   if(prev) prev.innerHTML = '';
-  showToast('Lançado!');
+  if(!alerta) showToast('Lançado!'); // não sobrescreve o alerta de orçamento
   sv_();
   render();
 }
