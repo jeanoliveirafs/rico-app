@@ -6,8 +6,8 @@ const cors = {
 }
 
 const plans = {
-  essential: { name: 'Rico Essencial', description: 'Controle financeiro completo', monthly: 9.90, annual: 99.90 },
-  intelligent: { name: 'Rico Inteligente', description: 'Controle financeiro + assistente de IA', monthly: 19.90, annual: 199.90 },
+  essential: { name: 'Graniva Essencial', description: 'Controle financeiro completo', monthly: 9.90, annual: 99.90 },
+  intelligent: { name: 'Graniva Inteligente', description: 'Controle financeiro + assistente de IA', monthly: 19.90, annual: 199.90 },
 } as const
 
 type PlanKey = keyof typeof plans

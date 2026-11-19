@@ -24,6 +24,7 @@ let txPage=0,txPerPage=15,txFilterMonth='',txFilterCat='',txFilterType='',txSear
 // ═══════ SUPABASE INITIALIZATION ═══════
 import { supabaseClient, SUPABASE_URL } from './src/supabaseClient.js';
 import { parseLancamento, lerExtrato, ehDuplicada, comparativoMensal, alertaOrcamento } from './src/t42_features.mjs';
+import { profileModalHTML } from './src/profile_view.mjs';
 let currentUser = null;
 let currentPlan = 'essential';
 let subscriptionStatus = 'inactive';
@@ -47,7 +48,7 @@ function rBlocked(){
   return `<div class="card" id="trial-blocked" style="max-width:520px;margin:40px auto;text-align:center;padding:28px 22px">
     <div style="font-size:44px">⏳</div>
     <h3 style="margin:10px 0 6px">Seu teste grátis de 7 dias terminou${fim?` em ${fim}`:''}</h3>
-    <p class="mu" style="margin-bottom:16px">Seus dados continuam guardados com segurança. Para continuar usando o RICO, escolha um plano assim que a assinatura estiver disponível.</p>
+    <p class="mu" style="margin-bottom:16px">Seus dados continuam guardados com segurança. Para continuar usando o Graniva, escolha um plano assim que a assinatura estiver disponível.</p>
     <button class="sb" disabled style="opacity:.6;cursor:not-allowed">Assinatura disponível em breve</button>
     <p class="mu" style="font-size:12px;margin-top:14px">Nenhuma cobrança foi feita.</p>
     <button class="cb" style="margin-top:10px" onclick="doLogout()">Sair</button>
@@ -106,10 +107,29 @@ async function loadAiUsage(){
 }
 
 // ═══════ OFFLINE SYNC QUEUE ═══════
+// Migra dados locais da marca antiga (RICO) sem perder cache, fila offline
+// ou e-mail lembrado. Roda uma vez; depois só as chaves novas são usadas.
+(function migrarChavesLocais(){
+  try{
+    const pares=[
+      ['rico_v5','graniva_v5'],
+      ['rico_saved_email','graniva_saved_email'],
+      ['rico_sync_queue','graniva_sync_queue'],
+      ['rico_pending_plan','graniva_pending_plan'],
+    ];
+    for(const [antiga,nova] of pares){
+      const valor=localStorage.getItem(antiga);
+      if(valor!==null){
+        if(localStorage.getItem(nova)===null) localStorage.setItem(nova,valor);
+        localStorage.removeItem(antiga);
+      }
+    }
+  }catch(e){}
+})();
 let isOnline = navigator.onLine;
-let syncQueue = JSON.parse(localStorage.getItem('rico_sync_queue')||'[]');
+let syncQueue = JSON.parse(localStorage.getItem('graniva_sync_queue')||'[]');
 
-function saveQueue(){ localStorage.setItem('rico_sync_queue', JSON.stringify(syncQueue)); }
+function saveQueue(){ localStorage.setItem('graniva_sync_queue', JSON.stringify(syncQueue)); }
 
 function queueOp(op){ syncQueue.push(op); saveQueue(); }
 
@@ -135,8 +155,8 @@ async function flushQueue(){
 }
 
 function showToast(msg, color='var(--green)'){
-  let t=document.getElementById('rico-toast');
-  if(!t){t=document.createElement('div');t.id='rico-toast';t.style.cssText='position:fixed;top:calc(env(safe-area-inset-top,0px)+12px);left:50%;transform:translateX(-50%);padding:8px 16px;border-radius:20px;font-size:12px;font-weight:700;z-index:999;pointer-events:none;transition:opacity .4s';document.body.appendChild(t);}
+  let t=document.getElementById('graniva-toast');
+  if(!t){t=document.createElement('div');t.id='graniva-toast';t.style.cssText='position:fixed;top:calc(env(safe-area-inset-top,0px)+12px);left:50%;transform:translateX(-50%);padding:8px 16px;border-radius:20px;font-size:12px;font-weight:700;z-index:999;pointer-events:none;transition:opacity .4s';document.body.appendChild(t);}
   t.textContent=msg;t.style.background=color==='var(--green)'?'rgba(74,222,128,.9)':color==='var(--yellow)'?'rgba(250,204,21,.92)':'rgba(248,113,113,.9)';t.style.color='#06060f';t.style.opacity='1';
   clearTimeout(t._to);t._to=setTimeout(()=>t.style.opacity='0',2500);
 }
@@ -188,7 +208,7 @@ function showOfflineBadge(){
 function openAuth(view='register', plan=''){
   const sales=document.getElementById('sales-page');
   const overlay=document.getElementById('auth-overlay');
-  if(plan) localStorage.setItem('rico_pending_plan', plan);
+  if(plan) localStorage.setItem('graniva_pending_plan', plan);
   document.body.classList.remove('sales-mode');
   document.documentElement.classList.remove('sales-mode');
   if(sales) sales.style.display='none';
@@ -239,6 +259,7 @@ function traduzErroAuth(msg){
   const m=String(msg||'');
   if(/Invalid login credentials/i.test(m)) return 'E-mail ou senha incorretos.';
   if(/at least 6 characters/i.test(m)) return 'A senha precisa ter pelo menos 6 caracteres.';
+  if(/different from the old|should be different/i.test(m)) return 'A nova senha precisa ser diferente da atual.';
   if(/already registered|already been registered|User already exists/i.test(m)) return 'Este e-mail já tem conta. Use "Entrar".';
   if(/invalid format|validate email|invalid email/i.test(m)) return 'E-mail inválido. Confira o endereço digitado.';
   if(/Email not confirmed/i.test(m)) return 'Confirme seu e-mail antes de entrar.';
@@ -261,8 +282,8 @@ async function doLogin() {
   }
   // Salvar / limpar email lembrado
   const remember = document.getElementById('auth-remember')?.checked;
-  if(remember) localStorage.setItem('rico_saved_email', email);
-  else localStorage.removeItem('rico_saved_email');
+  if(remember) localStorage.setItem('graniva_saved_email', email);
+  else localStorage.removeItem('graniva_saved_email');
 
   const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
   if (error) {
@@ -328,7 +349,7 @@ async function doLogout() {
 }
 
 // ═══════ PERSIST (SUPABASE) ═══════
-const KEY='rico_v5';
+const KEY='graniva_v5';
 
 async function loadData(){
   const [p,tx,b,d,sh,i,bh,sub,aiu] = await Promise.all([
@@ -394,7 +415,7 @@ async function ld(){
   // ════════════════════════════════════════════════════════════
   // PASSO 1b — Pré-preencher email lembrado na tela de login
   // ════════════════════════════════════════════════════════════
-  const savedEmail = localStorage.getItem('rico_saved_email');
+  const savedEmail = localStorage.getItem('graniva_saved_email');
   if(savedEmail){
     const emailEl = document.getElementById('auth-email');
     const remEl   = document.getElementById('auth-remember');
@@ -446,8 +467,8 @@ async function ld(){
     // Carrega dados frescos do Supabase (sobrescreve o cache)
     await loadData();
     await loadAccessStatus();
-    const pendingPlan=localStorage.getItem('rico_pending_plan');
-    if(pendingPlan) localStorage.removeItem('rico_pending_plan');
+    const pendingPlan=localStorage.getItem('graniva_pending_plan');
+    if(pendingPlan) localStorage.removeItem('graniva_pending_plan');
     applyTheme(); processRecurring(); updateStreak(); recordBalance();
     flushQueue(); checkBillNotifications(); injectManifest(); registerSW(); showIOSHint();
     render();
@@ -1165,7 +1186,7 @@ function rInvest(){
 function openPricing(selected='intelligent'){
   if(!currentUser){openAuth('register', selected);return;}
   const mc=document.getElementById('mc');
-  mc.innerHTML=`<p class="mt">Escolha seu plano</p><p class="mu" style="margin-bottom:16px">Seu plano atual: <strong>${currentPlan==='intelligent'?'Rico Inteligente':'Rico Essencial'}</strong>. A IA é liberada após a confirmação da assinatura.</p>
+  mc.innerHTML=`<p class="mt">Escolha seu plano</p><p class="mu" style="margin-bottom:16px">Seu plano atual: <strong>${currentPlan==='intelligent'?'Graniva Inteligente':'Graniva Essencial'}</strong>. A IA é liberada após a confirmação da assinatura.</p>
     <div class="sales-plan-modal"><button class="sales-plan-option${selected==='essential'?' selected':''}" onclick="startCheckout('essential','monthly')"><b>Essencial</b><span>R$ 9,90/mês</span><small>Controle financeiro completo</small></button><button class="sales-plan-option${selected==='intelligent'?' selected':''}" onclick="startCheckout('intelligent','monthly')"><b>Inteligente</b><span>R$ 19,90/mês</span><small>Controle + assistente de IA</small></button></div>
     <p class="mu" style="margin-top:14px">O pagamento é processado com segurança pelo Asaas.</p><button class="cb" onclick="cm()">Agora não</button>`;
   document.getElementById('mov').style.display='flex';
@@ -1194,9 +1215,9 @@ function aiStatusLine(){
 }
 
 function rAI(){
-  if(!hasAiAccess()) return `<div class="card ai-paywall"><p class="sl">🤖 RICO — Assistente Financeiro</p><h3>Tenha clareza com ajuda da IA.</h3><p class="mu">O plano Inteligente analisa seus gastos, responde suas perguntas e sugere o próximo passo com base nos seus dados.</p><button class="sb" onclick="openPricing('intelligent')">Conhecer o plano Inteligente →</button></div>`;
+  if(!hasAiAccess()) return `<div class="card ai-paywall"><p class="sl">🤖 GRANIVA — Assistente Financeiro</p><h3>Tenha clareza com ajuda da IA.</h3><p class="mu">O plano Inteligente analisa seus gastos, responde suas perguntas e sugere o próximo passo com base nos seus dados.</p><button class="sb" onclick="openPricing('intelligent')">Conhecer o plano Inteligente →</button></div>`;
   const ch=ach.map(m=>`<div class="bub ${m.role==='user'?'usr':''}"><${m.role==='assistant'?'span style="font-size:18px;flex-shrink:0">💎</span>':''}<div class="bt">${es(m.content)}</div></div>`).join('');
-  return `<div class="card"><p class="sl">🤖 RICO — Assistente Financeiro</p><p class="mu">Seu assistente de finanças pessoais com IA. Gastar Bem, Investir Melhor, Ganhar Mais.</p>${aiStatusLine()}</div>
+  return `<div class="card"><p class="sl">🤖 GRANIVA — Assistente Financeiro</p><p class="mu">Seu assistente de finanças pessoais com IA. Gastar Bem, Investir Melhor, Ganhar Mais.</p>${aiStatusLine()}</div>
   <div class="cb2" id="acb">${ach.length===0?`<div style="display:flex;flex-direction:column;align-items:center;padding:24px 0"><span style="font-size:48px">💎</span><p style="color:var(--muted2);margin-top:12px;font-size:13px;text-align:center">Seu assistente de finanças pessoais com IA</p><div class="sr">${['Analisa minha situação','Regra 50-30-20?','Plano para R$100k','Como ganhar mais?','Gastos compulsivos?'].map(s=>`<button class="sgb" onclick="sai('${s}')">${s}</button>`).join('')}</div></div>`:ch}${al?`<div class="bub"><span style="font-size:18px">💎</span><div class="bt" style="animation:pulse 1s infinite">Analisando sua situação...</div></div>`:''}</div>
   <div class="cr"><input class="ci" id="aii" placeholder="Escreva sua pergunta..." onkeydown="if(event.key==='Enter')aa()"/><button class="snd" onclick="aa()" ${al?'disabled':''}>➤</button></div>`;
 }
@@ -1219,10 +1240,71 @@ function om(type, arg){
   else if(type==='goal')mc.innerHTML=mGoal();
   else if(type==='goaldep')mc.innerHTML=mGoalDep(arg);
   else if(type==='import')mc.innerHTML=mImport();
+  else if(type==='profile')mc.innerHTML=mProfile();
+  else return; // tipo desconhecido: não abre modal vazio
   document.getElementById('mov').style.display='flex';
-  setTimeout(()=>{const f=document.querySelector('.sh input');if(f)f.focus();},100);
+  // O perfil começa com campos de senha: não foca sozinho para não abrir teclado/rolar.
+  if(type!=='profile'){
+    setTimeout(()=>{const f=document.querySelector('.sh input');if(f)f.focus();},100);
+  }
 }
 function cm(){document.getElementById('mov').style.display='none';}
+
+function perfilStatusLabel(){
+  if(!currentUser) return '';
+  if(subscriptionStatus==='trialing'){
+    const dias=trialDaysLeft();
+    if(dias===null) return 'Teste grátis';
+    return `Teste grátis · ${dias} dia${dias===1?'':'s'} restante${dias===1?'':'s'}`;
+  }
+  if(subscriptionStatus==='active') return 'Assinatura ativa';
+  if(accessInfo && accessInfo.has_access===false) return 'Acesso expirado';
+  return 'Sem assinatura';
+}
+
+function mProfile(){
+  return profileModalHTML({
+    email: currentUser?.email || '',
+    planKey: currentPlan,
+    status: perfilStatusLabel(),
+    theme: ST.theme,
+    version: '1.1.0',
+    brand: 'Graniva',
+  });
+}
+
+async function salvarSenha(){
+  const senha=document.getElementById('pf-pass');
+  const confirma=document.getElementById('pf-pass2');
+  const msg=document.getElementById('pf-msg');
+  const btn=document.getElementById('pf-save');
+  if(!senha||!confirma||!msg) return;
+
+  const mostrar=(texto,cor)=>{
+    msg.textContent=texto;
+    msg.style.display='block';
+    msg.style.background=cor==='verde'?'rgba(74,222,128,.1)':'rgba(248,113,113,.12)';
+    msg.style.border=`1px solid ${cor==='verde'?'rgba(74,222,128,.3)':'rgba(248,113,113,.3)'}`;
+    msg.style.color=cor==='verde'?'var(--green)':'var(--red)';
+  };
+
+  if(senha.value.length<6){ mostrar('A nova senha precisa ter pelo menos 6 caracteres.','vermelho'); senha.focus(); return; }
+  if(senha.value!==confirma.value){ mostrar('As duas senhas não são iguais.','vermelho'); confirma.focus(); return; }
+
+  if(btn){ btn.disabled=true; btn.textContent='Salvando...'; }
+  try{
+    const {error}=await supabaseClient.auth.updateUser({password:senha.value});
+    if(error){ mostrar(traduzErroAuth(error.message),'vermelho'); }
+    else{
+      senha.value=''; confirma.value='';
+      mostrar('Senha alterada. Use a nova senha no próximo acesso.','verde');
+    }
+  }catch(e){
+    mostrar(traduzErroAuth(e?.message),'vermelho');
+  }finally{
+    if(btn){ btn.disabled=false; btn.textContent='Salvar nova senha'; }
+  }
+}
 
 function mGoal(){
   return `<p class="mt">🎯 Nova Meta / Caixinha</p>
@@ -1670,7 +1752,7 @@ function exportCSV(){
   const blob=new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8'});
   const url=URL.createObjectURL(blob);
   const a=document.createElement('a');
-  a.href=url;a.download=`rico-${nm()}.csv`;a.click();
+  a.href=url;a.download=`graniva-${nm()}.csv`;a.click();
   URL.revokeObjectURL(url);
 }
 
@@ -1694,9 +1776,9 @@ function exportPDF(){
     return `<tr><td>${fD(t.date)}</td><td>${t.type==='income'?'Entrada':'Saída'}</td><td>${es(t.desc)}</td><td>${cat.emoji} ${cat.label}</td><td style="text-align:right;color:${col};font-weight:600">${sign}${fB(t.amount)}</td></tr>`;
   }).join('');
 
-  const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"/><title>RICO — Relatório${label}</title>
+  const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"/><title>GRANIVA — Relatório${label}</title>
   <link rel="stylesheet" href="/style.css" /></head><body>
-  <h1>💎 RICO — Relatório Financeiro${label}</h1>
+  <h1>💎 GRANIVA — Relatório Financeiro${label}</h1>
   <p class="sub">Gerado em ${dateStr} · ${list.length} transaç${list.length===1?'ão':'ões'}</p>
   <div class="summary">
     <div class="scard"><div class="label">Entradas</div><div class="val" style="color:#16a34a">+${fB(fIn)}</div></div>
@@ -1749,7 +1831,7 @@ async function aa(){
   const tInv=ST.investments.reduce((a,b)=>a+b.amount,0);
   const dS=ST.debts.filter(d=>!d.paid).reduce((a,b)=>a+b.amount,0);
   const sup=ST.shoppingList.filter(i=>!i.bought&&i.priority==='supérfluo');
-  const sys=`${LV}\nVocê é RICO, assistente de finanças pessoais. Direto, empático, motivador.\nSaldo ${fB(ST.balance)} | Meta R$100k | ${fP(Math.min((ST.balance/GOAL)*100,100))} | Entradas ${fB(tIn)} | Saídas ${fB(tOut)} | Investido ${fB(tInv)} | Dívidas ${fB(dS)} | Supérfluos: ${sup.length} | Streak: ${ST.streak||0} dias\nMáx 3 parágrafos. Use os princípios de finanças pessoais. Detecte compulsões. Meta R$100k→R$1M.`;
+  const sys=`${LV}\nVocê é GRANIVA, assistente de finanças pessoais. Direto, empático, motivador.\nSaldo ${fB(ST.balance)} | Meta R$100k | ${fP(Math.min((ST.balance/GOAL)*100,100))} | Entradas ${fB(tIn)} | Saídas ${fB(tOut)} | Investido ${fB(tInv)} | Dívidas ${fB(dS)} | Supérfluos: ${sup.length} | Streak: ${ST.streak||0} dias\nMáx 3 parágrafos. Use os princípios de finanças pessoais. Detecte compulsões. Meta R$100k→R$1M.`;
   try{const reply=await callAI(ach.map(m=>({role:m.role,content:m.content})),sys);ach.push({role:'assistant',content:reply});}
   catch(e){ach.push({role:'assistant',content:'❌ '+(e?.message||'Erro de conexão. Verifique sua internet.')});}
   al=false;sv_();render();
@@ -1761,7 +1843,7 @@ async function aia(){
   const msg=inp.value.trim();inp.value='';ial=true;
   ich.push({role:'user',content:msg});render();
   const tI=ST.investments.reduce((a,b)=>a+b.amount,0);
-  const sys=`${LV}\nVocê é RICO, consultor de investimentos com IA.\n${fB(tI)} investidos | Saldo: ${fB(ST.balance)} | Meta: R$100k\nMáx 3 parágrafos. Exemplos em R$. Cite corretoras reais. Use princípios sólidos de investimento.`;
+  const sys=`${LV}\nVocê é GRANIVA, consultor de investimentos com IA.\n${fB(tI)} investidos | Saldo: ${fB(ST.balance)} | Meta: R$100k\nMáx 3 parágrafos. Exemplos em R$. Cite corretoras reais. Use princípios sólidos de investimento.`;
   try{const reply=await callAI(ich.map(m=>({role:m.role,content:m.content})),sys);ich.push({role:'assistant',content:reply});}
   catch(e){ich.push({role:'assistant',content:'❌ '+(e?.message||'Erro.')});}
   ial=false;sv_();render();
@@ -1798,7 +1880,7 @@ async function anv(){
 // ═══════ PWA ═══════
 function injectManifest(){
   const m={
-    name:'RICO — Controle Financeiro',short_name:'RICO',
+    name:'GRANIVA — Controle Financeiro',short_name:'GRANIVA',
     description:'Controle financeiro inteligente com IA — gerencie seu dinheiro e conquiste seus objetivos.',
     start_url:'.',display:'standalone',background_color:'#06060f',
     theme_color:'#06060f',orientation:'portrait-primary',
@@ -1820,7 +1902,7 @@ function injectManifest(){
 function registerSW(){
   if(!('serviceWorker' in navigator))return;
   const sw=`
-const C='rico-app-v3-sales-scroll';
+const C='graniva-app-v4';
 const STATIC=['./'];
 self.addEventListener('install',e=>{
   e.waitUntil(caches.open(C).then(c=>c.addAll(STATIC).catch(()=>{})));
@@ -1832,6 +1914,16 @@ self.addEventListener('activate',e=>{
 });
 self.addEventListener('fetch',e=>{
   if(e.request.method!=='GET')return;
+  if(e.request.mode==='navigate'){
+    // HTML sempre tenta a rede primeiro: um deploy novo aparece na próxima visita.
+    e.respondWith(
+      fetch(e.request).then(r=>{
+        if(r.ok){const c=r.clone();caches.open(C).then(cache=>cache.put(e.request,c));}
+        return r;
+      }).catch(()=>caches.match(e.request).then(cached=>cached||caches.match('./')))
+    );
+    return;
+  }
   if(e.request.url.includes('api.anthropic.com'))return;
   e.respondWith(
     caches.match(e.request).then(cached=>{
@@ -1860,7 +1952,7 @@ function showInstallBanner(){
   const b=document.createElement('div');
   b.id='ibanner';
   b.style.cssText='position:fixed;bottom:calc(80px + env(safe-area-inset-bottom,0px));left:50%;transform:translateX(-50%);background:var(--bg2);border:1px solid rgba(74,222,128,.35);border-radius:14px;padding:12px 16px;display:flex;justify-content:space-between;align-items:center;gap:12px;z-index:50;max-width:440px;width:calc(100% - 32px);box-shadow:0 8px 32px rgba(0,0,0,.4)';
-  b.innerHTML=`<div><p style="font-size:12px;font-weight:700;color:var(--green)">📲 Instalar RICO como App</p><p style="font-size:11px;color:var(--muted2);margin-top:2px">Funciona offline · Dados salvos no dispositivo</p></div><div style="display:flex;gap:8px"><button onclick="document.getElementById('ibanner').remove()" style="background:transparent;border:1px solid var(--border);border-radius:8px;padding:6px 10px;color:var(--muted);font-size:11px">✕</button><button onclick="iapp()" style="background:linear-gradient(135deg,#16a34a,#4ade80);border:none;border-radius:8px;padding:7px 14px;color:#06060f;font-size:11px;font-weight:800;cursor:pointer">Instalar</button></div>`;
+  b.innerHTML=`<div><p style="font-size:12px;font-weight:700;color:var(--green)">📲 Instalar GRANIVA como App</p><p style="font-size:11px;color:var(--muted2);margin-top:2px">Funciona offline · Dados salvos no dispositivo</p></div><div style="display:flex;gap:8px"><button onclick="document.getElementById('ibanner').remove()" style="background:transparent;border:1px solid var(--border);border-radius:8px;padding:6px 10px;color:var(--muted);font-size:11px">✕</button><button onclick="iapp()" style="background:linear-gradient(135deg,#16a34a,#4ade80);border:none;border-radius:8px;padding:7px 14px;color:#06060f;font-size:11px;font-weight:800;cursor:pointer">Instalar</button></div>`;
   document.body.appendChild(b);
 }
 async function iapp(){

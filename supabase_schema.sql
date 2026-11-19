@@ -1,4 +1,4 @@
--- Esquema SQL para o Aplicativo RICO
+-- Esquema SQL para o Aplicativo GRANIVA
 -- Execute este script no SQL Editor do seu painel do Supabase.
 
 -- Tabela Profiles (Configurações Gerais do Usuário)

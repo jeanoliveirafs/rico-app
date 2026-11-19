@@ -1,9 +1,9 @@
-# Configuração do billing do Rico com Asaas
+# Configuração do billing do Graniva com Asaas
 
 ## Planos
 
-- `essential`: Rico Essencial — R$ 9,90/mês ou R$ 99,90/ano. Controle financeiro sem assistente de IA.
-- `intelligent`: Rico Inteligente — R$ 19,90/mês ou R$ 199,90/ano. Controle financeiro + assistente de IA.
+- `essential`: Graniva Essencial — R$ 9,90/mês ou R$ 99,90/ano. Controle financeiro sem assistente de IA.
+- `intelligent`: Graniva Inteligente — R$ 19,90/mês ou R$ 199,90/ano. Controle financeiro + assistente de IA.
 
 Os valores são a hipótese inicial de lançamento e podem ser ajustados antes de criar os produtos definitivos.
 

@@ -1,4 +1,4 @@
-// Cliente Supabase do app RICO.
+// Cliente Supabase do app GRANIVA.
 // Aponta para o Supabase self-hosted compartilhado e usa o schema `financas`
 // (o schema `public` pertence ao CRM em produção — nunca usar).
 import { createClient } from '@supabase/supabase-js';
@@ -10,7 +10,7 @@ const key =
   '';
 
 if (!key) {
-  console.warn('[rico] VITE_SUPABASE_KEY/VITE_SUPABASE_ANON_KEY não definidos no build.');
+  console.warn('[graniva] VITE_SUPABASE_KEY/VITE_SUPABASE_ANON_KEY não definidos no build.');
 }
 
 export const SUPABASE_URL = url;

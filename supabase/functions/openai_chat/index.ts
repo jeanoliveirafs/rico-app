@@ -1,5 +1,5 @@
 // ============================================================
-// RICO — IA com login obrigatório, plano verificado e limite de uso
+// GRANIVA — IA com login obrigatório, plano verificado e limite de uso
 //
 // ESTA É A PEÇA QUE FECHA O FURO: sem ela, o endpoint de IA aceita
 // qualquer requisição e o custo dos tokens fica com você.

@@ -1,4 +1,4 @@
--- RICO / FINANCAS — tabelas faltantes no schema `financas`
+-- GRANIVA / FINANCAS — tabelas faltantes no schema `financas`
 -- NUNCA tocar no schema public (CRM em produção).
 set search_path to financas, public;
 

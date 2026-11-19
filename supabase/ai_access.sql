@@ -1,5 +1,5 @@
 -- ============================================================
--- RICO — Limite de uso da IA + teste grátis
+-- GRANIVA — Limite de uso da IA + teste grátis
 -- Rode DEPOIS de supabase_schema.sql e de supabase/billing.sql.
 -- Idempotente: pode rodar mais de uma vez.
 -- ============================================================

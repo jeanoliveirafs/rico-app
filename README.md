@@ -1,8 +1,8 @@
-# 💰 RICO — Personal Finance App with AI Advisor
+# 💰 GRANIVA — Personal Finance App with AI Advisor
 
 > **EN** | [🇧🇷 Versão em Português abaixo](#-sobre-o-projeto-português)
 
-A personal finance web app inspired by the "Do Mil ao Milhão" methodology by Thiago Nigro. RICO helps users take control of their finances through expense tracking, investment simulation, and an AI financial advisor powered by GPT-4o.
+A personal finance web app inspired by the "Do Mil ao Milhão" methodology by Thiago Nigro. GRANIVA helps users take control of their finances through expense tracking, investment simulation, and an AI financial advisor powered by GPT-4o.
 
 ---
 
@@ -64,7 +64,7 @@ VITE_SUPABASE_KEY=your_supabase_anon_key
 
 ## 🇧🇷 Sobre o Projeto (Português)
 
-**RICO** é um app de controle financeiro pessoal baseado na metodologia do livro "Do Mil ao Milhão" de Thiago Nigro. Ajuda os usuários a controlarem suas finanças com rastreamento de gastos, simulação de investimentos e um assistente de IA financeiro.
+**GRANIVA** é um app de controle financeiro pessoal baseado na metodologia do livro "Do Mil ao Milhão" de Thiago Nigro. Ajuda os usuários a controlarem suas finanças com rastreamento de gastos, simulação de investimentos e um assistente de IA financeiro.
 
 ### Funcionalidades
 

@@ -1,4 +1,4 @@
--- Billing do RICO com Asaas
+-- Billing do GRANIVA com Asaas
 -- Execute depois de supabase_schema.sql no SQL Editor do Supabase.
 
 CREATE TABLE IF NOT EXISTS public.subscriptions (
