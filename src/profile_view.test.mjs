@@ -46,6 +46,8 @@ test('a engrenagem abre o modal de perfil e tipo desconhecido não abre vazio', 
   assert.match(main, /type==='profile'\)mc\.innerHTML=mProfile\(\)/);
   assert.match(main, /else return; \/\/ tipo desconhecido/);
   assert.match(main, /async function salvarSenha\(\)/);
+  // Precisa estar no window: os onclick inline do HTML não enxergam escopo de módulo.
+  assert.match(main, /openPricing, startCheckout, salvarSenha/);
 });
 
 test('a marca antiga saiu das telas e do manifest', () => {

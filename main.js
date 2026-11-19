@@ -2019,7 +2019,7 @@ function setComp(field, v)  {
 Object.assign(window, {
   sgoal, sgoaldep, delGoal,
   // Auth
-  doLogin, doLogout, doRegister, openAuth, openPricing, startCheckout,
+  doLogin, doLogout, doRegister, openAuth, openPricing, startCheckout, salvarSenha,
   // UI
   toggleTheme, sv, om, cm, render,
   // Export
